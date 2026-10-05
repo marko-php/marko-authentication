@@ -54,6 +54,20 @@ class AuthManager
     }
 
     /**
+     * Put a guard instance in place for a guard name, replacing any guard
+     * already built for it. guard($name) returns this instance from now on.
+     *
+     * Used by the marko/testing HTTP test client's actingAs() to authenticate
+     * a user without a login request.
+     */
+    public function useGuard(
+        string $name,
+        GuardInterface $guard,
+    ): void {
+        $this->guards[$name] = $guard;
+    }
+
+    /**
      * @throws AuthException|ConfigNotFoundException
      */
     private function createGuard(

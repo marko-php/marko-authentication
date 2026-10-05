@@ -14,6 +14,7 @@ use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
+use Marko\Testing\Fake\FakeGuard;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
 
@@ -474,5 +475,54 @@ describe('session guard collaborators', function (): void {
         expect($cookieJar->cookies)->toHaveKey('keep_web')
             ->and($cookieJar->cookies['keep_web'])->toStartWith('42|')
             ->and($user->getRememberToken())->not->toBeNull();
+    });
+});
+
+describe('useGuard', function (): void {
+    beforeEach(function (): void {
+        $session = new FakeSession();
+        $session->start();
+
+        $this->manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => [
+                    'web' => ['driver' => 'session', 'provider' => 'users'],
+                    'api' => ['driver' => 'token', 'provider' => 'users'],
+                ],
+            ])),
+            session: $session,
+            provider: new FakeUserProvider(),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(),
+        );
+    });
+
+    it('returns the guard registered with useGuard for that name', function (): void {
+        $guard = new FakeGuard(name: 'api');
+
+        $this->manager->useGuard('api', $guard);
+
+        expect($this->manager->guard('api'))->toBe($guard);
+    });
+
+    it('uses the registered guard for the default guard when no name is given', function (): void {
+        $guard = new FakeGuard(name: 'web');
+
+        $this->manager->useGuard('web', $guard);
+
+        expect($this->manager->guard())->toBe($guard);
+    });
+
+    it('replaces a guard that was already built', function (): void {
+        $built = $this->manager->guard('web');
+        $guard = new FakeGuard(name: 'web');
+
+        $this->manager->useGuard('web', $guard);
+
+        expect($built)->toBeInstanceOf(SessionGuard::class)
+            ->and($this->manager->guard('web'))->toBe($guard);
     });
 });
