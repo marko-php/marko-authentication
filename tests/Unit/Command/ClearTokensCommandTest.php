@@ -26,6 +26,12 @@ it('has description', function (): void {
     expect($command->description)->not->toBeEmpty();
 });
 
+it('declares force as a flag', function (): void {
+    $command = new ReflectionClass(ClearTokensCommand::class)->getAttributes(Command::class)[0]->newInstance();
+
+    expect($command->flags)->toBe(['force']);
+});
+
 it('clears expired tokens', function (): void {
     $storage = new class () implements RememberTokenStorageInterface
     {

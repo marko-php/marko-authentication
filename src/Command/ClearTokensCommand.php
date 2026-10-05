@@ -11,7 +11,7 @@ use Marko\Core\Command\Input;
 use Marko\Core\Command\Output;
 
 /** @noinspection PhpUnused */
-#[Command(name: 'auth:clear-tokens', description: 'Clear expired remember me tokens')]
+#[Command(name: 'auth:clear-tokens', description: 'Clear expired remember me tokens', flags: ['force'])]
 readonly class ClearTokensCommand implements CommandInterface
 {
     public function __construct(
@@ -22,7 +22,7 @@ readonly class ClearTokensCommand implements CommandInterface
         Input $input,
         Output $output,
     ): int {
-        $force = $this->hasForceFlag($input);
+        $force = $input->hasOption('force');
 
         if ($force) {
             $count = $this->storage->clearAllTokens();
@@ -43,11 +43,5 @@ readonly class ClearTokensCommand implements CommandInterface
         }
 
         return 0;
-    }
-
-    private function hasForceFlag(
-        Input $input,
-    ): bool {
-        return array_any($input->getArguments(), fn ($arg) => $arg === '--force');
     }
 }
