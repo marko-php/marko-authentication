@@ -16,6 +16,7 @@ use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Clock\SystemClock;
 use Marko\Config\ConfigRepository;
 use Marko\Config\ConfigRepositoryInterface;
 use Marko\Core\Container\Container;
@@ -33,6 +34,7 @@ use Marko\Session\Middleware\SessionMiddleware;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
+use Psr\Clock\ClockInterface;
 use ReflectionProperty;
 
 class RecordingAuthObserver
@@ -70,6 +72,8 @@ function bootAuthContainer(
         'session' => $session,
     ]));
     $container->instance(SessionInterface::class, new FakeSession());
+    // marko/clock's binding: SessionMiddleware takes a ClockInterface.
+    $container->instance(ClockInterface::class, new SystemClock());
     $container->instance(UserProviderInterface::class, $userProvider);
     $container->instance(RecordingAuthObserver::class, $observer);
 
