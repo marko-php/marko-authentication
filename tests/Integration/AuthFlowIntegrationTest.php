@@ -28,6 +28,7 @@ test('complete login flow works', function (): void {
     $session->start();
 
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -41,6 +42,9 @@ test('complete login flow works', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Initial state - not authenticated
@@ -65,6 +69,7 @@ test('complete logout flow works', function (): void {
     $session->start();
 
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -78,6 +83,9 @@ test('complete logout flow works', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Login first
@@ -137,6 +145,7 @@ test('guard switching works correctly', function (): void {
     $session->start();
 
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -152,6 +161,9 @@ test('guard switching works correctly', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Get different guards
@@ -207,6 +219,7 @@ test('module bindings resolve correctly', function (): void {
 
 test('config loading works', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'api',
         'authentication.default.provider' => 'customers',
         'authentication.guards' => [

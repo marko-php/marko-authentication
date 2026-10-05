@@ -23,6 +23,37 @@ class AuthException extends Exception
         );
     }
 
+    public static function cookieOutsideRequest(
+        string $name,
+    ): self {
+        return new self(
+            message: "Cannot queue cookie '$name': no HTTP request is being handled",
+            context: 'RequestCookieJar only writes cookies while QueuedCookiesMiddleware is handling a request',
+            suggestion: 'Log users in with remember-me (or log them out) from an HTTP request, and make sure marko/authentication\'s QueuedCookiesMiddleware is in the global middleware stack',
+        );
+    }
+
+    public static function rememberMeUnavailable(
+        string $guard,
+    ): self {
+        return new self(
+            message: "Remember-me was requested on guard '$guard', but the guard has no cookie jar or remember token manager",
+            context: "SessionGuard '$guard' was constructed without a CookieJarInterface or RememberTokenManager",
+            suggestion: 'Resolve the guard through AuthManager (or GuardInterface), or pass cookieJar and tokenManager when constructing SessionGuard yourself',
+        );
+    }
+
+    public static function rememberTokenNotStored(
+        string $guard,
+        string $provider,
+    ): self {
+        return new self(
+            message: "Remember-me was requested on guard '$guard', but the user provider did not store the remember token",
+            context: "After $provider::updateRememberToken(), the user's getRememberToken() did not return the new token hash",
+            suggestion: 'Make updateRememberToken() call $user->setRememberToken($token) and persist it (e.g. a remember_token column), or log in without remember: true',
+        );
+    }
+
     public function getContext(): string
     {
         return $this->context;

@@ -65,3 +65,11 @@ it('has config directory for default configuration', function () {
 
     expect(is_dir($configPath))->toBeTrue();
 });
+
+it('requires marko/config, marko/session and marko/routing', function () {
+    $composer = json_decode(file_get_contents(dirname(__DIR__) . '/composer.json'), true);
+
+    expect($composer['require'])->toHaveKey('marko/config')
+        ->and($composer['require'])->toHaveKey('marko/session')
+        ->and($composer['require'])->toHaveKey('marko/routing');
+});

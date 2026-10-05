@@ -65,8 +65,8 @@ it('loads password hasher settings', function () {
 
 it('loads remember token settings', function () {
     $rememberConfig = [
-        'expiration' => 43200,
-        'cookie' => 'remember_token',
+        'lifetime' => 43200,
+        'cookie' => ['prefix' => 'remember_'],
     ];
     $config = new AuthConfig(new FakeConfigRepository([
         'authentication.remember' => $rememberConfig,
@@ -119,4 +119,78 @@ it('config file contains all required keys with defaults', function () {
         ->and($config)->toHaveKey('password')
         ->and($config['password'])->toHaveKey('bcrypt')
         ->and($config['password']['bcrypt'])->toHaveKey('cost');
+});
+
+describe('remember cookie', function (): void {
+    it('returns remember lifetime in minutes from config', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.lifetime' => 1440,
+        ]));
+
+        expect($config->rememberLifetime())->toBe(1440);
+    });
+
+    it('returns remember cookie prefix from config', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.prefix' => 'keep_',
+        ]));
+
+        expect($config->rememberCookiePrefix())->toBe('keep_');
+    });
+
+    it('returns remember cookie path, domain, http only and same site from config', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.path' => '/app',
+            'authentication.remember.cookie.domain' => 'example.com',
+            'authentication.remember.cookie.http_only' => false,
+            'authentication.remember.cookie.same_site' => 'Strict',
+        ]));
+
+        expect($config->rememberCookiePath())->toBe('/app')
+            ->and($config->rememberCookieDomain())->toBe('example.com')
+            ->and($config->rememberCookieHttpOnly())->toBeFalse()
+            ->and($config->rememberCookieSameSite())->toBe('Strict');
+    });
+
+    it('returns null remember cookie domain when configured as empty string', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.domain' => '',
+        ]));
+
+        expect($config->rememberCookieDomain())->toBeNull();
+    });
+
+    it('follows session cookie secure flag when remember cookie secure is null', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.secure' => null,
+            'session.cookie.secure' => false,
+        ]));
+
+        expect($config->rememberCookieSecure())->toBeFalse();
+    });
+
+    it('uses explicit remember cookie secure flag when configured', function (): void {
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.secure' => true,
+            'session.cookie.secure' => false,
+        ]));
+
+        expect($config->rememberCookieSecure())->toBeTrue();
+    });
+
+    it('ships remember defaults in the package config file', function (): void {
+        $defaults = require dirname(__DIR__, 3) . '/config/authentication.php';
+
+        expect($defaults['remember'])->toBe([
+            'lifetime' => 43200,
+            'cookie' => [
+                'prefix' => 'remember_',
+                'path' => '/',
+                'domain' => '',
+                'secure' => null,
+                'http_only' => true,
+                'same_site' => 'Lax',
+            ],
+        ]);
+    });
 });

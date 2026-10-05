@@ -18,6 +18,11 @@ class RememberTokenManager
         $this->lifetimeMinutes = $lifetimeMinutes ?? 43200; // 30 days default
     }
 
+    public function lifetimeMinutes(): int
+    {
+        return $this->lifetimeMinutes;
+    }
+
     /**
      * @throws RandomException
      */

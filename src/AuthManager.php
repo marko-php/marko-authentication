@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Marko\Authentication;
 
 use Marko\Authentication\Config\AuthConfig;
+use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Guard\TokenGuard;
+use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Config\Exceptions\ConfigNotFoundException;
+use Marko\Core\Event\EventDispatcherInterface;
 use Marko\Session\Contracts\SessionInterface;
 
 class AuthManager
@@ -21,10 +25,13 @@ class AuthManager
         private readonly AuthConfig $config,
         private readonly SessionInterface $session,
         private readonly UserProviderInterface $provider,
+        private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly CookieJarInterface $cookieJar,
+        private readonly RememberTokenManager $rememberTokenManager,
     ) {}
 
     /**
-     * @throws AuthException
+     * @throws AuthException|ConfigNotFoundException
      */
     public function guard(
         ?string $name = null,
@@ -47,7 +54,7 @@ class AuthManager
     }
 
     /**
-     * @throws AuthException
+     * @throws AuthException|ConfigNotFoundException
      */
     private function createGuard(
         string $driver,
@@ -64,6 +71,9 @@ class AuthManager
         };
     }
 
+    /**
+     * @throws ConfigNotFoundException
+     */
     private function createSessionGuard(
         string $name,
     ): SessionGuard {
@@ -71,6 +81,10 @@ class AuthManager
             session: $this->session,
             provider: $this->provider,
             name: $name,
+            cookieJar: $this->cookieJar,
+            tokenManager: $this->rememberTokenManager,
+            eventDispatcher: $this->eventDispatcher,
+            rememberCookiePrefix: $this->config->rememberCookiePrefix(),
         );
     }
 

@@ -8,7 +8,9 @@ use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
@@ -141,6 +143,8 @@ test('it includes remember flag in LoginEvent', function (): void {
         session: $session,
         provider: $provider,
         name: 'web',
+        cookieJar: new FakeCookieJar(),
+        tokenManager: new RememberTokenManager(),
         eventDispatcher: $dispatcher,
     );
 

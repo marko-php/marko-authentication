@@ -5,11 +5,15 @@ declare(strict_types=1);
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Contracts\GuardInterface;
+use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Guard\TokenGuard;
+use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
+use Marko\Testing\Fake\FakeCookieJar;
+use Marko\Testing\Fake\FakeEventDispatcher;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
 
@@ -19,6 +23,7 @@ test('auth manager exists', function (): void {
 
 test('it resolves default guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -34,6 +39,9 @@ test('it resolves default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $guard = $manager->guard();
@@ -43,6 +51,7 @@ test('it resolves default guard', function (): void {
 
 test('it resolves named guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -59,6 +68,9 @@ test('it resolves named guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $guard = $manager->guard('api');
@@ -69,6 +81,7 @@ test('it resolves named guard', function (): void {
 
 test('it caches guard instances', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -84,6 +97,9 @@ test('it caches guard instances', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $guard1 = $manager->guard('web');
@@ -94,6 +110,7 @@ test('it caches guard instances', function (): void {
 
 test('it proxies check to default guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -109,6 +126,9 @@ test('it proxies check to default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // No user authenticated, so check() should return false
@@ -117,6 +137,7 @@ test('it proxies check to default guard', function (): void {
 
 test('it proxies user to default guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -132,6 +153,9 @@ test('it proxies user to default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // No user authenticated, so user() should return null
@@ -140,6 +164,7 @@ test('it proxies user to default guard', function (): void {
 
 test('it proxies id to default guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -155,6 +180,9 @@ test('it proxies id to default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // No user authenticated, so id() should return null
@@ -164,6 +192,7 @@ test('it proxies id to default guard', function (): void {
 test('it proxies attempt to default guard', function (): void {
     $user = new FakeAuthenticatable(id: 42);
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -179,6 +208,9 @@ test('it proxies attempt to default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $result = $manager->attempt(['email' => 'test@example.com', 'password' => 'secret']);
@@ -190,6 +222,7 @@ test('it proxies attempt to default guard', function (): void {
 test('it proxies logout to default guard', function (): void {
     $user = new FakeAuthenticatable(id: 42);
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -205,6 +238,9 @@ test('it proxies logout to default guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Login first
@@ -219,6 +255,7 @@ test('it proxies logout to default guard', function (): void {
 
 test('it creates session guard for session driver', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -234,6 +271,9 @@ test('it creates session guard for session driver', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $guard = $manager->guard('web');
@@ -243,6 +283,7 @@ test('it creates session guard for session driver', function (): void {
 
 test('it creates token guard for token driver', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -259,6 +300,9 @@ test('it creates token guard for token driver', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $guard = $manager->guard('api');
@@ -268,6 +312,7 @@ test('it creates token guard for token driver', function (): void {
 
 test('it throws for unknown guard driver', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'custom',
         'authentication.guards' => [
             'custom' => ['driver' => 'unknown_driver', 'provider' => 'users'],
@@ -283,6 +328,9 @@ test('it throws for unknown guard driver', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     $manager->guard('custom');
@@ -290,6 +338,7 @@ test('it throws for unknown guard driver', function (): void {
 
 test('it throws for unknown guard', function (): void {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -305,6 +354,9 @@ test('it throws for unknown guard', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Requesting a guard that doesn't exist in config should fail
@@ -319,6 +371,7 @@ test('it throws for unknown guard', function (): void {
 test('it handles multiple guards', function (): void {
     $user = new FakeAuthenticatable(id: 42);
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -336,6 +389,9 @@ test('it handles multiple guards', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Get multiple guards
@@ -366,4 +422,57 @@ test('it handles multiple guards', function (): void {
         ->and($manager->guard('api')->check())->toBeFalse();
 
     // API guard (token-based) should not be authenticated
+});
+
+describe('session guard collaborators', function (): void {
+    it('passes the event dispatcher to session guards', function (): void {
+        $user = new FakeAuthenticatable(id: 42);
+        $session = new FakeSession();
+        $session->start();
+        $dispatcher = new FakeEventDispatcher();
+
+        $manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => ['web' => ['driver' => 'session']],
+            ])),
+            session: $session,
+            provider: new FakeUserProvider([42 => $user]),
+            eventDispatcher: $dispatcher,
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(),
+        );
+
+        $manager->guard()->login($user);
+
+        expect($dispatcher->dispatched)->toHaveCount(1)
+            ->and($dispatcher->dispatched[0])->toBeInstanceOf(LoginEvent::class);
+    });
+
+    it('passes the cookie jar, token manager and configured cookie prefix to session guards', function (): void {
+        $user = new FakeAuthenticatable(id: 42);
+        $session = new FakeSession();
+        $session->start();
+        $cookieJar = new FakeCookieJar();
+
+        $manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'keep_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => ['web' => ['driver' => 'session']],
+            ])),
+            session: $session,
+            provider: new FakeUserProvider([42 => $user]),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: $cookieJar,
+            rememberTokenManager: new RememberTokenManager(),
+        );
+
+        $manager->guard()->login($user, remember: true);
+
+        expect($cookieJar->cookies)->toHaveKey('keep_web')
+            ->and($cookieJar->cookies['keep_web'])->toStartWith('42|')
+            ->and($user->getRememberToken())->not->toBeNull();
+    });
 });

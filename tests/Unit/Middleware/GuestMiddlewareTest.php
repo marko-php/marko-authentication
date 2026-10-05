@@ -5,10 +5,13 @@ declare(strict_types=1);
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Middleware\GuestMiddleware;
+use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
+use Marko\Testing\Fake\FakeCookieJar;
+use Marko\Testing\Fake\FakeEventDispatcher;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
 
@@ -17,6 +20,7 @@ function createGuestAuthManagerWithUser(
     ?FakeAuthenticatable $user = null,
 ): AuthManager {
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -35,6 +39,9 @@ function createGuestAuthManagerWithUser(
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // If user provided, authenticate them
@@ -116,6 +123,7 @@ test('it supports configurable redirect URL', function (): void {
 test('it supports specifying guard via parameter', function (): void {
     $user = new FakeAuthenticatable(id: 1);
     $configRepo = new FakeConfigRepository([
+        'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
         'authentication.guards' => [
             'web' => ['driver' => 'session', 'provider' => 'users'],
@@ -132,6 +140,9 @@ test('it supports specifying guard via parameter', function (): void {
         config: $authConfig,
         session: $session,
         provider: $provider,
+        eventDispatcher: new FakeEventDispatcher(),
+        cookieJar: new FakeCookieJar(),
+        rememberTokenManager: new RememberTokenManager(),
     );
 
     // Authenticate on web guard

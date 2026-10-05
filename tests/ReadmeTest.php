@@ -2,62 +2,30 @@
 
 declare(strict_types=1);
 
-it('README exists in package root', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
+function authenticationReadme(): string
+{
+    return file_get_contents(dirname(__DIR__) . '/README.md');
+}
 
-    expect(file_exists($readmePath))->toBeTrue();
+it('README exists in package root', function () {
+    expect(file_exists(dirname(__DIR__) . '/README.md'))->toBeTrue();
+});
+
+it('README starts with the package title', function () {
+    expect(authenticationReadme())->toStartWith('# marko/authentication');
 });
 
 it('README includes installation instructions', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('## Installation')
-        ->and($content)->toContain('composer require marko/authentication');
+    expect(authenticationReadme())->toContain('## Installation')
+        ->toContain('composer require marko/authentication');
 });
 
-it('README includes configuration examples', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('## Configuration')
-        ->and($content)->toContain('config/authentication.php');
+it('README includes a quick example', function () {
+    expect(authenticationReadme())->toContain('## Quick Example')
+        ->toContain('AuthManager')
+        ->toContain('attempt(');
 });
 
-it('README includes usage examples', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('## Usage')
-        ->and($content)->toContain('AuthManager')
-        ->and($content)->toContain('check()')
-        ->and($content)->toContain('attempt(');
-});
-
-it('README documents guards', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('Guard')
-        ->and($content)->toContain('SessionGuard')
-        ->and($content)->toContain('TokenGuard');
-});
-
-it('README documents middleware', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('Middleware')
-        ->and($content)->toContain('AuthMiddleware')
-        ->and($content)->toContain('GuestMiddleware');
-});
-
-it('README documents events', function () {
-    $readmePath = dirname(__DIR__) . '/README.md';
-    $content = file_get_contents($readmePath);
-
-    expect($content)->toContain('Event')
-        ->and($content)->toContain('LoginEvent')
-        ->and($content)->toContain('LogoutEvent')
-        ->and($content)->toContain('FailedLoginEvent');
+it('README links to the full documentation', function () {
+    expect(authenticationReadme())->toContain('https://marko.build/docs/packages/authentication/');
 });

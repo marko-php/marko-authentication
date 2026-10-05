@@ -297,46 +297,7 @@ test('it authenticates via remember token cookie', function (): void {
     $cookieJar = new FakeCookieJar();
     $cookieJar->set('remember_web', '42|' . $plainToken);
 
-    // Use inline provider since FakeUserProvider's retrieveByRememberToken
-    // compares token to stored hash, which is incompatible with guard's
-    // separate validation step
-    $provider = new readonly class ($user) implements UserProviderInterface
-    {
-        public function __construct(
-            private AuthenticatableInterface $userByRememberToken,
-        ) {}
-
-        public function retrieveById(int|string $identifier): ?AuthenticatableInterface
-        {
-            return null;
-        }
-
-        public function retrieveByCredentials(array $credentials): ?AuthenticatableInterface
-        {
-            return null;
-        }
-
-        public function validateCredentials(
-            AuthenticatableInterface $user,
-            array $credentials,
-        ): bool {
-            return false;
-        }
-
-        public function retrieveByRememberToken(
-            int|string $identifier,
-            string $token,
-        ): ?AuthenticatableInterface {
-            return $this->userByRememberToken;
-        }
-
-        public function updateRememberToken(
-            AuthenticatableInterface $user,
-            ?string $token,
-        ): void {
-            $user->setRememberToken($token);
-        }
-    };
+    $provider = new FakeUserProvider([42 => $user]);
 
     $guard = new SessionGuard(
         session: $session,
@@ -403,46 +364,7 @@ test('it regenerates remember token on each use', function (): void {
     $cookieJar->set('remember_web', '42|' . $originalPlainToken);
     $originalCookieValue = $cookieJar->cookies['remember_web'];
 
-    // Use inline provider since FakeUserProvider's retrieveByRememberToken
-    // compares token to stored hash, which is incompatible with guard's
-    // separate validation step
-    $provider = new readonly class ($user) implements UserProviderInterface
-    {
-        public function __construct(
-            private AuthenticatableInterface $userByRememberToken,
-        ) {}
-
-        public function retrieveById(int|string $identifier): ?AuthenticatableInterface
-        {
-            return null;
-        }
-
-        public function retrieveByCredentials(array $credentials): ?AuthenticatableInterface
-        {
-            return null;
-        }
-
-        public function validateCredentials(
-            AuthenticatableInterface $user,
-            array $credentials,
-        ): bool {
-            return false;
-        }
-
-        public function retrieveByRememberToken(
-            int|string $identifier,
-            string $token,
-        ): ?AuthenticatableInterface {
-            return $this->userByRememberToken;
-        }
-
-        public function updateRememberToken(
-            AuthenticatableInterface $user,
-            ?string $token,
-        ): void {
-            $user->setRememberToken($token);
-        }
-    };
+    $provider = new FakeUserProvider([42 => $user]);
 
     $guard = new SessionGuard(
         session: $session,
