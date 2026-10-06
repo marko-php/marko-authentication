@@ -73,11 +73,11 @@ it('builds RememberTokenManager with the bound clock from the module', function 
     $config = require dirname(__DIR__, 2) . '/module.php';
     $binding = $config['bindings'][RememberTokenManager::class];
 
-    $authConfig = $this->createMock(AuthConfig::class);
+    $authConfig = $this->createStub(AuthConfig::class);
     $authConfig->method('rememberLifetime')->willReturn(60);
     $clock = new FakeClock('2026-01-01 12:00:00 UTC');
 
-    $container = $this->createMock(ContainerInterface::class);
+    $container = $this->createStub(ContainerInterface::class);
     $container->method('get')->willReturnCallback(
         fn (string $id): object => match ($id) {
             AuthConfig::class => $authConfig,
@@ -100,7 +100,7 @@ it('creates guard via AuthManager', function () {
     $config = require $modulePath;
     $binding = $config['bindings'][GuardInterface::class];
 
-    $guard = $this->createMock(GuardInterface::class);
+    $guard = $this->createStub(GuardInterface::class);
 
     $authManager = $this->createMock(AuthManager::class);
     $authManager->expects($this->once())
