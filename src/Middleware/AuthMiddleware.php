@@ -4,14 +4,24 @@ declare(strict_types=1);
 
 namespace Marko\Authentication\Middleware;
 
-use JsonException;
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\TokenGuard;
+use Marko\Config\Exceptions\ConfigNotFoundException;
+use Marko\Routing\Exceptions\HttpException;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Routing\Middleware\MiddlewareInterface;
 
+/**
+ * Lets authenticated requests through.
+ *
+ * An unauthenticated request is redirected to `redirectTo` when one is set
+ * and the guard is stateful. Otherwise (and always for token guards, whose
+ * clients cannot follow a login redirect) it throws a 401 HttpException,
+ * which the routing pipeline renders through ExceptionRenderer as JSON or
+ * HTML according to the request's Accept header.
+ */
 readonly class AuthMiddleware implements MiddlewareInterface
 {
     public function __construct(
@@ -21,7 +31,7 @@ readonly class AuthMiddleware implements MiddlewareInterface
     ) {}
 
     /**
-     * @throws JsonException|AuthException
+     * @throws AuthException|ConfigNotFoundException|HttpException
      */
     public function handle(
         Request $request,
@@ -33,22 +43,10 @@ readonly class AuthMiddleware implements MiddlewareInterface
             return $next($request);
         }
 
-        // API guards return JSON 401
-        if ($guard instanceof TokenGuard) {
-            return Response::json(
-                data: ['error' => 'Unauthorized'],
-                statusCode: 401,
-            );
-        }
-
-        // Web guards redirect if redirectTo is configured
-        if ($this->redirectTo !== null) {
+        if ($this->redirectTo !== null && !$guard instanceof TokenGuard) {
             return Response::redirect($this->redirectTo);
         }
 
-        return new Response(
-            body: 'Unauthorized',
-            statusCode: 401,
-        );
+        throw HttpException::unauthorized('Unauthorized.');
     }
 }

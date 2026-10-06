@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use Marko\Authentication\Exceptions\AuthenticationException;
 use Marko\Authentication\Exceptions\AuthException;
-use Marko\Authentication\Exceptions\AuthorizationException;
 use Marko\Authentication\Exceptions\InvalidCredentialsException;
 
 it('creates AuthException as base exception', function () {
@@ -41,28 +40,15 @@ it('creates AuthenticationException with factory method', function () {
         ->and($exception->getSuggestion())->not->toBeEmpty();
 });
 
-it('creates AuthorizationException extending AuthException', function () {
-    $exception = new AuthorizationException('Access denied');
-
-    expect($exception)->toBeInstanceOf(AuthException::class)
-        ->and($exception->getMessage())->toBe('Access denied');
-});
-
-it('creates AuthorizationException with factory method', function () {
-    $exception = AuthorizationException::forbidden('edit', 'posts');
-
-    expect($exception)->toBeInstanceOf(AuthorizationException::class)
-        ->and($exception->getMessage())->toBe('Forbidden')
-        ->and($exception->getContext())->toContain('edit')
-        ->and($exception->getContext())->toContain('posts')
-        ->and($exception->getSuggestion())->not->toBeEmpty();
+it('no longer ships a duplicate AuthorizationException in the authentication package', function () {
+    expect(class_exists('Marko\\Authentication\\Exceptions\\AuthorizationException'))->toBeFalse();
 });
 
 it('creates InvalidCredentialsException extending AuthenticationException', function () {
     $exception = new InvalidCredentialsException('Invalid credentials');
 
     expect($exception)->toBeInstanceOf(AuthenticationException::class)
-        ->and($exception)->toBeInstanceOf(AuthException::class)
+        ->toBeInstanceOf(AuthException::class)
         ->and($exception->getMessage())->toBe('Invalid credentials');
 });
 
