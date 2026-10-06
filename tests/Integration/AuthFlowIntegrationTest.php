@@ -16,6 +16,7 @@ use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
@@ -44,7 +45,7 @@ test('complete login flow works', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -86,7 +87,7 @@ test('complete logout flow works', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -108,7 +109,7 @@ test('remember me creates and uses token', function (): void {
     $session = new FakeSession();
     $session->start();
     $cookieJar = new FakeCookieJar();
-    $tokenManager = new RememberTokenManager();
+    $tokenManager = new RememberTokenManager(new FakeClock());
     $provider = new FakeUserProvider([42 => $user]);
 
     $guard = new SessionGuard(
@@ -165,7 +166,7 @@ test('guard switching works correctly', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 

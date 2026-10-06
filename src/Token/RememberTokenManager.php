@@ -6,6 +6,7 @@ namespace Marko\Authentication\Token;
 
 use DateMalformedStringException;
 use DateTimeImmutable;
+use Psr\Clock\ClockInterface;
 use Random\RandomException;
 
 class RememberTokenManager
@@ -13,6 +14,7 @@ class RememberTokenManager
     private int $lifetimeMinutes;
 
     public function __construct(
+        private readonly ClockInterface $clock,
         ?int $lifetimeMinutes = null,
     ) {
         $this->lifetimeMinutes = $lifetimeMinutes ?? 43200; // 30 days default
@@ -52,7 +54,7 @@ class RememberTokenManager
     ): bool {
         $expiresAt = $createdAt->modify("+$this->lifetimeMinutes minutes");
 
-        return $expiresAt < new DateTimeImmutable();
+        return $expiresAt < $this->clock->now();
     }
 
     /**

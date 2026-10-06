@@ -8,10 +8,12 @@ use Marko\Authentication\Cookie\RequestCookieJar;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Core\Contracts\ResettableInterface;
 use Marko\Routing\Http\Request;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 
 function createRequestCookieJar(
     array $overrides = [],
+    ?FakeClock $clock = null,
 ): RequestCookieJar {
     return new RequestCookieJar(new AuthConfig(new FakeConfigRepository([
         'authentication.remember.cookie.path' => '/',
@@ -20,7 +22,7 @@ function createRequestCookieJar(
         'authentication.remember.cookie.http_only' => true,
         'authentication.remember.cookie.same_site' => 'Lax',
         ...$overrides,
-    ])));
+    ])), $clock ?? new FakeClock());
 }
 
 describe('RequestCookieJar', function (): void {
@@ -46,12 +48,10 @@ describe('RequestCookieJar', function (): void {
         $jar = createRequestCookieJar(['authentication.remember.cookie.domain' => 'example.com']);
         $jar->setRequest(new Request());
 
-        $before = time();
         $jar->set('remember_web', '42|token', 60);
 
         $cookies = $jar->pullQueuedCookies();
         $header = $cookies[0]->toSetCookieString();
-        $expected = gmdate('D, d M Y H:i:s \G\M\T', $before + 3600);
 
         expect($cookies)->toHaveCount(1)
             ->and($header)->toStartWith('remember_web=42%7Ctoken')
@@ -60,9 +60,29 @@ describe('RequestCookieJar', function (): void {
             ->toContain('Secure')
             ->toContain('HttpOnly')
             ->toContain('SameSite=Lax')
-            ->toContain('Expires=')
-            ->and(abs(strtotime(substr($header, strpos($header, 'Expires=') + 8, 29)) - strtotime($expected)))
-            ->toBeLessThanOrEqual(1);
+            ->toContain('Expires=');
+    });
+
+    it('sets the cookie expiry relative to the injected clock', function (): void {
+        $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+        $jar = createRequestCookieJar(clock: $clock);
+        $jar->setRequest(new Request());
+
+        $jar->set('remember_web', '42|token', 60);
+
+        expect($jar->pullQueuedCookies()[0]->expires())
+            ->toBe($clock->now()->getTimestamp() + 3600);
+    });
+
+    it('expires a deleted cookie relative to the injected clock', function (): void {
+        $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+        $jar = createRequestCookieJar(clock: $clock);
+        $jar->setRequest(new Request());
+
+        $jar->delete('remember_web');
+
+        expect($jar->pullQueuedCookies()[0]->expires())
+            ->toBe($clock->now()->getTimestamp() - 42000);
     });
 
     it('queues a session cookie when minutes is zero', function (): void {

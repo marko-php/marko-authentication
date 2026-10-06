@@ -13,6 +13,7 @@ use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Contracts\ResettableInterface;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
@@ -44,7 +45,7 @@ test('it resolves default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -74,7 +75,7 @@ test('it resolves named guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -104,7 +105,7 @@ test('it caches guard instances', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -134,7 +135,7 @@ test('it proxies check to default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -162,7 +163,7 @@ test('it proxies user to default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -190,7 +191,7 @@ test('it proxies id to default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -219,7 +220,7 @@ test('it proxies attempt to default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -250,7 +251,7 @@ test('it proxies logout to default guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -284,7 +285,7 @@ test('it creates session guard for session driver', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -314,7 +315,7 @@ test('it creates the guard registered for the token driver', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -343,7 +344,7 @@ test('it throws for unknown guard driver', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -370,7 +371,7 @@ test('it throws for unknown guard', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -406,7 +407,7 @@ test('it handles multiple guards', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -457,7 +458,7 @@ describe('session guard collaborators', function (): void {
             provider: new FakeUserProvider([42 => $user]),
             eventDispatcher: $dispatcher,
             cookieJar: new FakeCookieJar(),
-            rememberTokenManager: new RememberTokenManager(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
             guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
 
@@ -483,7 +484,7 @@ describe('session guard collaborators', function (): void {
             provider: new FakeUserProvider([42 => $user]),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: $cookieJar,
-            rememberTokenManager: new RememberTokenManager(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
             guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
 
@@ -513,7 +514,7 @@ describe('useGuard', function (): void {
             provider: new FakeUserProvider(),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
-            rememberTokenManager: new RememberTokenManager(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
             guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
     });
@@ -563,7 +564,7 @@ describe('reset', function (): void {
             provider: new FakeUserProvider(users: [1 => new FakeAuthenticatable(id: 1)]),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
-            rememberTokenManager: new RememberTokenManager(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
         );
     });
 
@@ -618,7 +619,7 @@ describe('reset', function (): void {
             provider: new FakeUserProvider(),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
-            rememberTokenManager: new RememberTokenManager(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
             guardDriverRegistry: $registry,
         );
 

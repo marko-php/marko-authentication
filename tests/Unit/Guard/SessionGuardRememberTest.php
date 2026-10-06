@@ -11,6 +11,7 @@ use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
@@ -74,7 +75,7 @@ describe('SessionGuard remember-me', function (): void {
             provider: $provider,
             name: 'web',
             cookieJar: new FakeCookieJar(),
-            tokenManager: new RememberTokenManager(),
+            tokenManager: new RememberTokenManager(new FakeClock()),
         );
 
         expect(fn () => $guard->login($user, remember: true))
@@ -82,7 +83,7 @@ describe('SessionGuard remember-me', function (): void {
     });
 
     it('looks up remember users by the hashed token', function (): void {
-        $tokenManager = new RememberTokenManager();
+        $tokenManager = new RememberTokenManager(new FakeClock());
         $user = new FakeAuthenticatable(id: 42);
         $user->setRememberToken($tokenManager->hash('plain-token'));
         $cookieJar = new FakeCookieJar();
@@ -104,7 +105,7 @@ describe('SessionGuard remember-me', function (): void {
     it('authenticates via remember cookie set by a previous login with FakeUserProvider', function (): void {
         $user = new FakeAuthenticatable(id: 42);
         $provider = new FakeUserProvider([42 => $user]);
-        $tokenManager = new RememberTokenManager();
+        $tokenManager = new RememberTokenManager(new FakeClock());
         $cookieJar = new FakeCookieJar();
 
         $first = new SessionGuard(
@@ -128,7 +129,7 @@ describe('SessionGuard remember-me', function (): void {
     });
 
     it('rejects a remember cookie whose token does not match', function (): void {
-        $tokenManager = new RememberTokenManager();
+        $tokenManager = new RememberTokenManager(new FakeClock());
         $user = new FakeAuthenticatable(id: 42);
         $user->setRememberToken($tokenManager->hash('real-token'));
         $cookieJar = new FakeCookieJar();
@@ -172,7 +173,7 @@ describe('SessionGuard remember-me', function (): void {
             provider: new FakeUserProvider([42 => $user]),
             name: 'web',
             cookieJar: $cookieJar,
-            tokenManager: new RememberTokenManager(lifetimeMinutes: 90),
+            tokenManager: new RememberTokenManager(new FakeClock(), lifetimeMinutes: 90),
         );
         $guard->login($user, remember: true);
 
@@ -188,7 +189,7 @@ describe('SessionGuard remember-me', function (): void {
             provider: new FakeUserProvider([42 => $user]),
             name: 'web',
             cookieJar: $cookieJar,
-            tokenManager: new RememberTokenManager(),
+            tokenManager: new RememberTokenManager(new FakeClock()),
             rememberCookiePrefix: 'keep_',
         );
         $guard->login($user, remember: true);

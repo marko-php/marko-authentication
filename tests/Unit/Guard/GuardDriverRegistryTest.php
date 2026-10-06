@@ -10,6 +10,7 @@ use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
@@ -38,7 +39,7 @@ function managerWithDrivers(
         provider: $provider ?? new FakeUserProvider(),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: $guardDriverRegistry,
     );
 }

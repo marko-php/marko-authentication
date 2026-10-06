@@ -13,6 +13,7 @@ use Marko\Authentication\Hashing\BcryptPasswordHasher;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\ContainerInterface;
+use Psr\Clock\ClockInterface;
 
 return [
     // Load after the session drivers so QueuedCookiesMiddleware runs inside SessionMiddleware.
@@ -29,6 +30,7 @@ return [
         },
         RememberTokenManager::class => function (ContainerInterface $container): RememberTokenManager {
             return new RememberTokenManager(
+                clock: $container->get(ClockInterface::class),
                 lifetimeMinutes: $container->get(AuthConfig::class)->rememberLifetime(),
             );
         },

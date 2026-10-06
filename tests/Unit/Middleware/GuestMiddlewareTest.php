@@ -10,6 +10,7 @@ use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
 use Marko\Testing\Fake\FakeEventDispatcher;
@@ -42,7 +43,7 @@ function createGuestAuthManagerWithUser(
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
@@ -144,7 +145,7 @@ test('it supports specifying guard via parameter', function (): void {
         provider: $provider,
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(),
+        rememberTokenManager: new RememberTokenManager(new FakeClock()),
         guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 

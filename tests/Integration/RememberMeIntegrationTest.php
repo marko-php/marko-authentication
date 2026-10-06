@@ -32,6 +32,7 @@ use Marko\Routing\Middleware\MiddlewarePipeline;
 use Marko\Session\Contracts\SessionInterface;
 use Marko\Session\Middleware\SessionMiddleware;
 use Marko\Testing\Fake\FakeAuthenticatable;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
 use Psr\Clock\ClockInterface;
@@ -250,7 +251,7 @@ describe('remember-me through the middleware pipeline', function (): void {
 
     it('does not authenticate a request carrying a forged remember cookie', function (): void {
         $user = new FakeAuthenticatable(id: 42);
-        $user->setRememberToken(new RememberTokenManager()->hash('real'));
+        $user->setRememberToken(new RememberTokenManager(new FakeClock())->hash('real'));
 
         $seenUser = 'unset';
         handleAuthRequest(
@@ -269,7 +270,7 @@ describe('remember-me through the middleware pipeline', function (): void {
     it('emits an expired remember cookie and clears the stored token on logout', function (): void {
         $user = new FakeAuthenticatable(id: 42);
         $provider = new FakeUserProvider([42 => $user]);
-        $tokenManager = new RememberTokenManager();
+        $tokenManager = new RememberTokenManager(new FakeClock());
         $user->setRememberToken($tokenManager->hash('plain'));
 
         $response = handleAuthRequest(

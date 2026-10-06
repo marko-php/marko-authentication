@@ -13,6 +13,7 @@ use Marko\Routing\Exceptions\CookieException;
 use Marko\Routing\Http\Cookie;
 use Marko\Routing\Http\Request;
 use Override;
+use Psr\Clock\ClockInterface;
 
 /**
  * Cookie jar backed by the current HTTP request.
@@ -38,6 +39,7 @@ class RequestCookieJar implements CookieJarInterface, ResettableInterface
 
     public function __construct(
         private readonly AuthConfig $config,
+        private readonly ClockInterface $clock,
     ) {}
 
     /**
@@ -72,7 +74,7 @@ class RequestCookieJar implements CookieJarInterface, ResettableInterface
         $this->queue(
             name: $name,
             value: $value,
-            expires: $minutes > 0 ? time() + $minutes * self::SECONDS_PER_MINUTE : null,
+            expires: $minutes > 0 ? $this->clock->now()->getTimestamp() + $minutes * self::SECONDS_PER_MINUTE : null,
         );
         $this->queuedValues[$name] = $value;
     }
@@ -86,7 +88,7 @@ class RequestCookieJar implements CookieJarInterface, ResettableInterface
         $this->queue(
             name: $name,
             value: '',
-            expires: time() - self::EXPIRED_COOKIE_OFFSET_SECONDS,
+            expires: $this->clock->now()->getTimestamp() - self::EXPIRED_COOKIE_OFFSET_SECONDS,
         );
         $this->queuedValues[$name] = null;
     }

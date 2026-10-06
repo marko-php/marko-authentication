@@ -8,6 +8,7 @@ use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Routing\Middleware\MiddlewareInterface;
+use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
 
 function createQueuedCookiesJar(): RequestCookieJar
@@ -18,7 +19,7 @@ function createQueuedCookiesJar(): RequestCookieJar
         'authentication.remember.cookie.secure' => false,
         'authentication.remember.cookie.http_only' => true,
         'authentication.remember.cookie.same_site' => 'Lax',
-    ])));
+    ])), new FakeClock());
 }
 
 describe('QueuedCookiesMiddleware', function (): void {

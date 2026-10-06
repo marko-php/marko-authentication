@@ -8,7 +8,10 @@ use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\PasswordHasherInterface;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
+use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\ContainerInterface;
+use Marko\Testing\Fake\FakeClock;
+use Psr\Clock\ClockInterface;
 
 it('has enabled set to true', function () {
     $modulePath = dirname(__DIR__, 2) . '/module.php';
@@ -64,6 +67,32 @@ it('creates password hasher with config cost', function () {
 
     expect($result)->toBeInstanceOf(BcryptPasswordHasher::class)
         ->and($result)->toBeInstanceOf(PasswordHasherInterface::class);
+});
+
+it('builds RememberTokenManager with the bound clock from the module', function () {
+    $config = require dirname(__DIR__, 2) . '/module.php';
+    $binding = $config['bindings'][RememberTokenManager::class];
+
+    $authConfig = $this->createMock(AuthConfig::class);
+    $authConfig->method('rememberLifetime')->willReturn(60);
+    $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+
+    $container = $this->createMock(ContainerInterface::class);
+    $container->method('get')->willReturnCallback(
+        fn (string $id): object => match ($id) {
+            AuthConfig::class => $authConfig,
+            ClockInterface::class => $clock,
+        },
+    );
+
+    $manager = $binding($container);
+    $createdAt = $clock->now();
+
+    $clock->travel('+60 minutes');
+    expect($manager->isExpired($createdAt))->toBeFalse();
+
+    $clock->travel('+1 second');
+    expect($manager->isExpired($createdAt))->toBeTrue();
 });
 
 it('creates guard via AuthManager', function () {

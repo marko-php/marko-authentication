@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Testing\Fake\FakeClock;
 
 it('generates cryptographically secure tokens', function () {
-    $manager = new RememberTokenManager();
+    $manager = new RememberTokenManager(new FakeClock());
 
     $token = $manager->generate();
 
@@ -16,7 +17,7 @@ it('generates cryptographically secure tokens', function () {
 });
 
 it('generates unique tokens each time', function () {
-    $manager = new RememberTokenManager();
+    $manager = new RememberTokenManager(new FakeClock());
 
     $tokens = [];
     for ($i = 0; $i < 100; $i++) {
@@ -28,7 +29,7 @@ it('generates unique tokens each time', function () {
 });
 
 it('hashes token for storage', function () {
-    $manager = new RememberTokenManager();
+    $manager = new RememberTokenManager(new FakeClock());
 
     $token = $manager->generate();
     $hash = $manager->hash($token);
@@ -41,7 +42,7 @@ it('hashes token for storage', function () {
 });
 
 it('validates token with timing-safe comparison', function () {
-    $manager = new RememberTokenManager();
+    $manager = new RememberTokenManager(new FakeClock());
 
     $token = $manager->generate();
     $storedHash = $manager->hash($token);
@@ -54,55 +55,57 @@ it('validates token with timing-safe comparison', function () {
     expect($manager->validate($wrongToken, $storedHash))->toBeFalse();
 });
 
-it('checks token expiration', function () {
-    $manager = new RememberTokenManager(lifetimeMinutes: 60);
+it('treats a token as valid until the clock passes its lifetime', function () {
+    $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+    $manager = new RememberTokenManager($clock, lifetimeMinutes: 60);
+    $createdAt = $clock->now();
 
-    // Token created now should not be expired
-    $createdAt = new DateTimeImmutable();
     expect($manager->isExpired($createdAt))->toBeFalse();
 
-    // Token created 30 minutes ago should not be expired
-    $createdAt = new DateTimeImmutable('-30 minutes');
+    $clock->travel('+30 minutes');
+    expect($manager->isExpired($createdAt))->toBeFalse();
+
+    $clock->travel('+30 minutes');
     expect($manager->isExpired($createdAt))->toBeFalse();
 });
 
-it('returns false for expired tokens', function () {
-    $manager = new RememberTokenManager(lifetimeMinutes: 60);
+it('treats a token as expired one second after its lifetime on the clock', function () {
+    $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+    $manager = new RememberTokenManager($clock, lifetimeMinutes: 60);
+    $createdAt = $clock->now();
 
-    // Token created 61 minutes ago should be expired
-    $createdAt = new DateTimeImmutable('-61 minutes');
-    expect($manager->isExpired($createdAt))->toBeTrue();
+    $clock->travel('+60 minutes +1 second');
 
-    // Token created 2 hours ago should be expired
-    $createdAt = new DateTimeImmutable('-2 hours');
     expect($manager->isExpired($createdAt))->toBeTrue();
 });
 
 it('supports configurable token lifetime', function () {
+    $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+
     // Short lifetime
-    $shortManager = new RememberTokenManager(lifetimeMinutes: 5);
-    $createdAt = new DateTimeImmutable('-6 minutes');
-    expect($shortManager->isExpired($createdAt))->toBeTrue();
+    $shortManager = new RememberTokenManager($clock, lifetimeMinutes: 5);
+    expect($shortManager->isExpired($clock->now()->modify('-6 minutes')))->toBeTrue();
 
     // Long lifetime
-    $longManager = new RememberTokenManager(lifetimeMinutes: 60 * 24 * 7); // 7 days
-    $createdAt = new DateTimeImmutable('-6 days');
-    expect($longManager->isExpired($createdAt))->toBeFalse();
+    $longManager = new RememberTokenManager($clock, lifetimeMinutes: 60 * 24 * 7); // 7 days
+    expect($longManager->isExpired($clock->now()->modify('-6 days')))->toBeFalse();
 
     // Default lifetime (30 days)
-    $defaultManager = new RememberTokenManager();
-    $createdAt = new DateTimeImmutable('-29 days');
-    expect($defaultManager->isExpired($createdAt))->toBeFalse();
+    $defaultManager = new RememberTokenManager($clock);
+    expect($defaultManager->isExpired($clock->now()->modify('-29 days')))->toBeFalse()
+        ->and($defaultManager->isExpired($clock->now()->modify('-31 days')))->toBeTrue();
 });
 
-it('clears expired tokens', function () {
-    $manager = new RememberTokenManager(lifetimeMinutes: 60);
+it('filters expired tokens against the injected clock', function () {
+    $clock = new FakeClock('2026-01-01 12:00:00 UTC');
+    $manager = new RememberTokenManager($clock, lifetimeMinutes: 60);
+    $now = $clock->now();
 
     $tokens = [
-        ['hash' => 'hash1', 'created_at' => new DateTimeImmutable('-30 minutes')], // valid
-        ['hash' => 'hash2', 'created_at' => new DateTimeImmutable('-90 minutes')], // expired
-        ['hash' => 'hash3', 'created_at' => new DateTimeImmutable('-5 minutes')],  // valid
-        ['hash' => 'hash4', 'created_at' => new DateTimeImmutable('-2 hours')],    // expired
+        ['hash' => 'hash1', 'created_at' => $now->modify('-30 minutes')], // valid
+        ['hash' => 'hash2', 'created_at' => $now->modify('-90 minutes')], // expired
+        ['hash' => 'hash3', 'created_at' => $now->modify('-5 minutes')],  // valid
+        ['hash' => 'hash4', 'created_at' => $now->modify('-2 hours')],    // expired
     ];
 
     $validTokens = $manager->filterExpired($tokens);
@@ -110,4 +113,8 @@ it('clears expired tokens', function () {
     expect($validTokens)->toHaveCount(2)
         ->and($validTokens[0]['hash'])->toBe('hash1')
         ->and($validTokens[1]['hash'])->toBe('hash3');
+
+    $clock->travel('+31 minutes');
+
+    expect($manager->filterExpired($tokens))->toHaveCount(1);
 });
