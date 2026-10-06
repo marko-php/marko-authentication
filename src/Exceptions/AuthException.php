@@ -158,6 +158,26 @@ class AuthException extends Exception
         );
     }
 
+    public static function throttleRequiresCache(): self
+    {
+        return new self(
+            message: 'Login throttling is enabled, but no cache driver is installed',
+            context: 'authentication.throttle.enabled is true, and LoginThrottle counts failed logins in Marko\\Cache\\Contracts\\CacheInterface, which has no binding',
+            suggestion: "Install a cache driver ('composer require marko/cache-file', or marko/cache-redis for several servers), or set authentication.throttle.enabled to false and throttle logins yourself",
+        );
+    }
+
+    public static function invalidThrottleLimit(
+        string $name,
+        int $value,
+    ): self {
+        return new self(
+            message: "authentication.throttle.$name must be a positive integer, got $value",
+            context: 'While building the login throttle from authentication.throttle',
+            suggestion: "Set authentication.throttle.$name to 1 or more, or set authentication.throttle.enabled to false to turn login throttling off",
+        );
+    }
+
     public function getContext(): string
     {
         return $this->context;

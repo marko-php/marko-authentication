@@ -13,9 +13,13 @@ use Marko\Authentication\Cookie\RequestCookieJar;
 use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
+use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Cache\Config\CacheConfig;
+use Marko\Cache\Contracts\CacheInterface;
+use Marko\Cache\Memory\Driver\ArrayCacheDriver;
 use Marko\Clock\SystemClock;
 use Marko\Config\ConfigRepository;
 use Marko\Config\ConfigRepositoryInterface;
@@ -57,15 +61,20 @@ class RecordingAuthObserver
  * EventDispatcher bound with observers registered for the auth events.
  *
  * @param array<string, mixed> $rememberCookieOverrides
+ * @param array<string, mixed> $throttleOverrides
  */
 function bootAuthContainer(
     UserProviderInterface $userProvider,
     RecordingAuthObserver $observer = new RecordingAuthObserver(),
     array $rememberCookieOverrides = [],
+    array $throttleOverrides = [],
+    bool $withCacheDriver = true,
+    ClockInterface $clock = new SystemClock(),
 ): Container {
     $packageRoot = dirname(__DIR__, 2);
     $authentication = require $packageRoot . '/config/authentication.php';
     $authentication['remember']['cookie'] = [...$authentication['remember']['cookie'], ...$rememberCookieOverrides];
+    $authentication['throttle'] = [...$authentication['throttle'], ...$throttleOverrides];
     $session = require dirname($packageRoot) . '/session/config/session.php';
 
     $container = new Container();
@@ -77,7 +86,14 @@ function bootAuthContainer(
     ]));
     $container->instance(SessionInterface::class, new FakeSession());
     // marko/clock's binding: SessionMiddleware takes a ClockInterface.
-    $container->instance(ClockInterface::class, new SystemClock());
+    $container->instance(ClockInterface::class, $clock);
+
+    if ($withCacheDriver) {
+        // A cache driver module's binding: the login throttle counts failures in the cache.
+        $container->instance(CacheInterface::class, new ArrayCacheDriver(new CacheConfig(new ConfigRepository([
+            'cache' => ['path' => sys_get_temp_dir(), 'default_ttl' => 3600, 'driver' => 'array'],
+        ])), $clock));
+    }
     $container->instance(UserProviderInterface::class, $userProvider);
     $container->instance(RecordingAuthObserver::class, $observer);
 
@@ -322,5 +338,52 @@ describe('auth events through AuthManager', function (): void {
             LoginEvent::class,
             LogoutEvent::class,
         ]);
+    });
+});
+
+describe('login throttling through the booted container', function (): void {
+    it('renders a locked-out login attempt as 429 with Retry-After', function (): void {
+        $provider = new FakeUserProvider(
+            [42 => new FakeAuthenticatable(id: 42)],
+            fn ($user, array $credentials): bool => ($credentials['password'] ?? null) === 'secret',
+        );
+        $container = bootAuthContainer($provider, clock: new FakeClock('2026-01-01 12:00:00 UTC'));
+        $login = fn (string $password): Response => handleAuthRequest(
+            $container,
+            new Request(server: ['REMOTE_ADDR' => '203.0.113.7']),
+            fn (GuardInterface $guard): Response => new Response(
+                $guard->attempt(['identifier' => 42, 'password' => $password]) ? 'in' : 'denied',
+            ),
+        );
+
+        $statuses = array_map(fn (int $i): int => $login('wrong')->statusCode(), range(1, 5));
+        $lockedOut = $login('secret');
+
+        expect($statuses)->toBe([200, 200, 200, 200, 200])
+            ->and($lockedOut->statusCode())->toBe(429)
+            ->and($lockedOut->headers()['Retry-After'])->toBe('60')
+            ->and($lockedOut->body())->not->toBe('in');
+    });
+
+    it('fails loudly on a login attempt when no cache driver is bound', function (): void {
+        $container = bootAuthContainer(new FakeUserProvider(), withCacheDriver: false);
+
+        expect(fn () => $container->get(GuardInterface::class)->attempt(['identifier' => 42, 'password' => 'x']))
+            ->toThrow(AuthException::class, 'Login throttling is enabled, but no cache driver is installed');
+    });
+
+    it('does not throttle when authentication.throttle.enabled is false', function (): void {
+        $guard = bootAuthContainer(
+            new FakeUserProvider(),
+            throttleOverrides: ['enabled' => false],
+            withCacheDriver: false,
+        )->get(GuardInterface::class);
+
+        $results = array_map(
+            fn (int $i): bool => $guard->attempt(['identifier' => 42, 'password' => 'wrong']),
+            range(1, 10),
+        );
+
+        expect($results)->toBe(array_fill(0, 10, false));
     });
 });

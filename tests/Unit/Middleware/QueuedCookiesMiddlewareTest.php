@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Cookie\RequestCookieJar;
+use Marko\Authentication\Http\CurrentRequest;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Routing\Attributes\RunsOnUnmatched;
 use Marko\Routing\Http\Request;
@@ -25,12 +26,14 @@ function createQueuedCookiesJar(): RequestCookieJar
 
 describe('QueuedCookiesMiddleware', function (): void {
     it('implements MiddlewareInterface', function (): void {
-        expect(new QueuedCookiesMiddleware(createQueuedCookiesJar()))->toBeInstanceOf(MiddlewareInterface::class);
+        expect(new QueuedCookiesMiddleware(createQueuedCookiesJar(), new CurrentRequest()))->toBeInstanceOf(
+            MiddlewareInterface::class,
+        );
     });
 
     it('gives the inbound request to the cookie jar before the handler runs', function (): void {
         $jar = createQueuedCookiesJar();
-        $middleware = new QueuedCookiesMiddleware($jar);
+        $middleware = new QueuedCookiesMiddleware($jar, new CurrentRequest());
         $seen = null;
 
         $middleware->handle(
@@ -45,9 +48,27 @@ describe('QueuedCookiesMiddleware', function (): void {
         expect($seen)->toBe('42|token');
     });
 
+    it('gives the inbound request to CurrentRequest for the login throttle', function (): void {
+        $currentRequest = new CurrentRequest();
+        $middleware = new QueuedCookiesMiddleware(createQueuedCookiesJar(), $currentRequest);
+        $request = new Request(server: ['REMOTE_ADDR' => '203.0.113.7']);
+        $seen = null;
+
+        $middleware->handle(
+            $request,
+            function () use ($currentRequest, &$seen): Response {
+                $seen = $currentRequest->get();
+
+                return new Response('ok');
+            },
+        );
+
+        expect($seen)->toBe($request);
+    });
+
     it('attaches queued cookies to the response', function (): void {
         $jar = createQueuedCookiesJar();
-        $middleware = new QueuedCookiesMiddleware($jar);
+        $middleware = new QueuedCookiesMiddleware($jar, new CurrentRequest());
 
         $response = $middleware->handle(
             new Request(),
@@ -66,7 +87,7 @@ describe('QueuedCookiesMiddleware', function (): void {
     });
 
     it('returns the response untouched when nothing is queued', function (): void {
-        $middleware = new QueuedCookiesMiddleware(createQueuedCookiesJar());
+        $middleware = new QueuedCookiesMiddleware(createQueuedCookiesJar(), new CurrentRequest());
         $original = new Response('ok');
 
         $response = $middleware->handle(new Request(), fn (): Response => $original);
@@ -76,7 +97,7 @@ describe('QueuedCookiesMiddleware', function (): void {
 
     it('flushes the queue after attaching cookies', function (): void {
         $jar = createQueuedCookiesJar();
-        $middleware = new QueuedCookiesMiddleware($jar);
+        $middleware = new QueuedCookiesMiddleware($jar, new CurrentRequest());
 
         $middleware->handle(
             new Request(),

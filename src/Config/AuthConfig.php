@@ -153,4 +153,52 @@ readonly class AuthConfig
     {
         return $this->config->getString('authentication.remember.cookie.same_site');
     }
+
+    /**
+     * @throws ConfigNotFoundException
+     */
+    public function throttleEnabled(): bool
+    {
+        return $this->config->getBool('authentication.throttle.enabled');
+    }
+
+    /**
+     * Failed logins allowed within the decay window before a lockout.
+     *
+     * @throws ConfigNotFoundException
+     */
+    public function throttleMaxAttempts(): int
+    {
+        return $this->config->getInt('authentication.throttle.max_attempts');
+    }
+
+    /**
+     * Seconds over which failed logins are counted.
+     *
+     * @throws ConfigNotFoundException
+     */
+    public function throttleDecaySeconds(): int
+    {
+        return $this->config->getInt('authentication.throttle.decay_seconds');
+    }
+
+    /**
+     * Length in seconds of the first lockout; each further lockout doubles it.
+     *
+     * @throws ConfigNotFoundException
+     */
+    public function throttleLockoutSeconds(): int
+    {
+        return $this->config->getInt('authentication.throttle.lockout_seconds');
+    }
+
+    /**
+     * The longest a lockout can grow to, in seconds.
+     *
+     * @throws ConfigNotFoundException
+     */
+    public function throttleMaxLockoutSeconds(): int
+    {
+        return $this->config->getInt('authentication.throttle.max_lockout_seconds');
+    }
 }

@@ -91,4 +91,25 @@ return [
             'same_site' => 'Lax',
         ],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Login Throttling
+    |--------------------------------------------------------------------------
+    |
+    | SessionGuard::attempt() locks out a login identifier (e.g. the email)
+    | for one client IP after max_attempts failures within decay_seconds.
+    | The first lockout lasts lockout_seconds; each further one doubles, up
+    | to max_lockout_seconds. A locked-out attempt throws
+    | TooManyLoginAttemptsException (429 with Retry-After). Counters live in
+    | the cache, so a cache driver is required while this is enabled.
+    |
+    */
+    'throttle' => [
+        'enabled' => true,
+        'max_attempts' => 5,
+        'decay_seconds' => 60,
+        'lockout_seconds' => 60,
+        'max_lockout_seconds' => 3600,
+    ],
 ];

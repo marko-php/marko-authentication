@@ -9,11 +9,13 @@ use DateTimeImmutable;
 use Marko\Authentication\AuthenticatableInterface;
 use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
+use Marko\Authentication\Contracts\LoginThrottleInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Exceptions\AuthException;
+use Marko\Authentication\Exceptions\TooManyLoginAttemptsException;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Contracts\ResettableInterface;
 use Marko\Core\Event\EventDispatcherInterface;
@@ -37,6 +39,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
         private readonly ?RememberTokenManager $tokenManager = null,
         private readonly ?EventDispatcherInterface $eventDispatcher = null,
         private readonly string $rememberCookiePrefix = 'remember_',
+        private readonly ?LoginThrottleInterface $loginThrottle = null,
     ) {}
 
     /**
@@ -152,13 +155,19 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
+     * Throttled by the login throttle when one is set: a locked-out attempt
+     * throws before the user is looked up, every failure is counted, and a
+     * success clears the count.
+     *
      * @param array<string, mixed> $credentials
      *
-     * @throws AuthException|DateMalformedStringException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException|TooManyLoginAttemptsException
      */
     public function attempt(
         array $credentials,
     ): bool {
+        $this->loginThrottle?->ensureNotLockedOut($this->name, $credentials);
+
         $user = $this->provider->retrieveByCredentials($credentials);
 
         if ($user === null) {
@@ -173,6 +182,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
             return false;
         }
 
+        $this->loginThrottle?->clear($this->name, $credentials);
         $this->login($user);
 
         return true;
@@ -184,6 +194,9 @@ class SessionGuard implements GuardInterface, ResettableInterface
     private function dispatchFailedLoginEvent(
         array $credentials,
     ): void {
+        // Every failed attempt counts toward the throttle, whether or not the user exists
+        $this->loginThrottle?->recordFailure($this->name, $credentials);
+
         $this->eventDispatcher?->dispatch(new FailedLoginEvent(
             credentials: $credentials,
             guard: $this->name,
