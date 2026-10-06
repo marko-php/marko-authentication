@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Marko\Authentication\Contracts;
 
+use DateTimeImmutable;
 use Marko\Authentication\AuthenticatableInterface;
 
 interface UserProviderInterface
@@ -43,10 +44,15 @@ interface UserProviderInterface
     ): ?AuthenticatableInterface;
 
     /**
-     * Update the "remember me" token for the given user in storage.
+     * Update the "remember me" token and its expiry for the given user in storage.
+     *
+     * Implementations call $user->setRememberToken($token) and
+     * $user->setRememberTokenExpiresAt($expiresAt), then persist both.
+     * Both are null when the token is being cleared (logout).
      */
     public function updateRememberToken(
         AuthenticatableInterface $user,
         ?string $token,
+        ?DateTimeImmutable $expiresAt,
     ): void;
 }

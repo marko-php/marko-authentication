@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Marko\Authentication\Guard;
 
+use DateMalformedStringException;
+use DateTimeImmutable;
 use Marko\Authentication\AuthenticatableInterface;
 use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
@@ -38,7 +40,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
     ) {}
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function check(): bool
     {
@@ -46,7 +48,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function guest(): bool
     {
@@ -54,7 +56,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function user(): ?AuthenticatableInterface
     {
@@ -77,7 +79,14 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * Log the user in from the remember cookie, once per session.
+     *
+     * A valid, unexpired cookie goes through the same session login as a
+     * password login (session key, regenerated ID, LoginEvent), so later
+     * requests authenticate from the session and the cookie is not consumed
+     * again until that session ends.
+     *
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     private function authenticateViaRememberCookie(): ?AuthenticatableInterface
     {
@@ -113,14 +122,29 @@ class SessionGuard implements GuardInterface, ResettableInterface
             return null;
         }
 
-        // Regenerate the token for security (prevents replay attacks)
-        $this->createRememberToken($user);
+        // The expiry lives server-side: the cookie's own Expires is client-controlled
+        $expiresAt = $user->getRememberTokenExpiresAt();
+
+        if ($expiresAt === null || $this->tokenManager->hasExpired($expiresAt)) {
+            $this->provider->updateRememberToken($user, null, null);
+            $this->cookieJar->delete($this->getRememberCookieName());
+
+            return null;
+        }
+
+        $this->startSession($user);
+
+        // Rotate the token (prevents replay) but keep the original expiry, so a
+        // remember-me login has a fixed lifetime however often it is used
+        $this->createRememberToken($user, $expiresAt);
+
+        $this->dispatchLoginEvent($user, true);
 
         return $user;
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function id(): int|string|null
     {
@@ -130,7 +154,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
     /**
      * @param array<string, mixed> $credentials
      *
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function attempt(
         array $credentials,
@@ -167,15 +191,13 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function login(
         AuthenticatableInterface $user,
         bool $remember = false,
     ): void {
-        $this->ensureSessionAvailable();
-        $this->session->set($this->getSessionKey(), $user->getAuthIdentifier());
-        $this->session->regenerate();
+        $this->startSession($user);
         $this->cachedUser = $user;
 
         if ($remember) {
@@ -183,6 +205,19 @@ class SessionGuard implements GuardInterface, ResettableInterface
         }
 
         $this->dispatchLoginEvent($user, $remember);
+    }
+
+    /**
+     * Store the user in the session under a fresh session ID (prevents fixation).
+     *
+     * @throws AuthException
+     */
+    private function startSession(
+        AuthenticatableInterface $user,
+    ): void {
+        $this->ensureSessionAvailable();
+        $this->session->set($this->getSessionKey(), $user->getAuthIdentifier());
+        $this->session->regenerate();
     }
 
     private function dispatchLoginEvent(
@@ -197,10 +232,13 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * Issue a new remember token, expiring at $expiresAt (default: a full lifetime from now).
+     *
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     private function createRememberToken(
         AuthenticatableInterface $user,
+        ?DateTimeImmutable $expiresAt = null,
     ): void {
         if ($this->cookieJar === null || $this->tokenManager === null) {
             throw AuthException::rememberMeUnavailable($this->name);
@@ -208,10 +246,14 @@ class SessionGuard implements GuardInterface, ResettableInterface
 
         $token = $this->tokenManager->generate();
         $hashedToken = $this->tokenManager->hash($token);
+        $expiresAt ??= $this->tokenManager->expiresAt();
 
-        $this->provider->updateRememberToken($user, $hashedToken);
+        $this->provider->updateRememberToken($user, $hashedToken, $expiresAt);
 
-        if ($user->getRememberToken() !== $hashedToken) {
+        if (
+            $user->getRememberToken() !== $hashedToken
+            || $user->getRememberTokenExpiresAt()?->getTimestamp() !== $expiresAt->getTimestamp()
+        ) {
             throw AuthException::rememberTokenNotStored($this->name, $this->provider::class);
         }
 
@@ -219,7 +261,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
         $this->cookieJar->set(
             $this->getRememberCookieName(),
             $cookieValue,
-            $this->tokenManager->lifetimeMinutes(),
+            $this->tokenManager->minutesUntil($expiresAt),
         );
     }
 
@@ -248,7 +290,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function loginById(
         int|string $id,
@@ -265,23 +307,26 @@ class SessionGuard implements GuardInterface, ResettableInterface
     }
 
     /**
-     * @throws AuthException|RandomException
+     * @throws AuthException|DateMalformedStringException|RandomException
      */
     public function logout(): void
     {
         $user = $this->user();
 
         if ($user !== null && $this->cookieJar !== null && $this->tokenManager !== null) {
-            $this->provider->updateRememberToken($user, null);
+            $this->provider->updateRememberToken($user, null, null);
             $this->cookieJar->delete($this->getRememberCookieName());
-        }
-
-        if ($user !== null) {
-            $this->dispatchLogoutEvent($user);
         }
 
         $this->session->remove($this->getSessionKey());
         $this->cachedUser = null;
+
+        if ($user !== null) {
+            // A new session ID, with the old session deleted, so the logged-out ID
+            // cannot be reused (shared machines, planted session cookies)
+            $this->session->regenerate(true);
+            $this->dispatchLogoutEvent($user);
+        }
     }
 
     private function dispatchLogoutEvent(

@@ -47,6 +47,36 @@ class RememberTokenManager
     }
 
     /**
+     * When a token issued now stops being accepted.
+     *
+     * @throws DateMalformedStringException
+     */
+    public function expiresAt(): DateTimeImmutable
+    {
+        return $this->clock->now()->modify("+$this->lifetimeMinutes minutes");
+    }
+
+    /**
+     * Whether a token with the given expiry is no longer accepted.
+     */
+    public function hasExpired(
+        DateTimeImmutable $expiresAt,
+    ): bool {
+        return $expiresAt <= $this->clock->now();
+    }
+
+    /**
+     * Whole minutes until the given expiry, at least one, for the cookie lifetime.
+     */
+    public function minutesUntil(
+        DateTimeImmutable $expiresAt,
+    ): int {
+        $seconds = $expiresAt->getTimestamp() - $this->clock->now()->getTimestamp();
+
+        return max(1, (int) ceil($seconds / 60));
+    }
+
+    /**
      * @throws DateMalformedStringException
      */
     public function isExpired(
