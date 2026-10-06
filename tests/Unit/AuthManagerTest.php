@@ -7,6 +7,7 @@ use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Exceptions\AuthException;
+use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
@@ -591,5 +592,41 @@ describe('reset', function (): void {
         expect($this->manager->guard('web'))->toBe($built)
             ->and($this->manager->guard('api'))->toBe($registered)
             ->and($registered->id())->toBe(7);
+    });
+
+    it('resets a resettable guard built by a registered driver, such as the token guard', function (): void {
+        $tokenGuard = new class (name: 'api') extends FakeGuard implements ResettableInterface
+        {
+            public int $resets = 0;
+
+            public function reset(): void
+            {
+                $this->resets++;
+            }
+        };
+        $registry = new GuardDriverRegistry();
+        $registry->extend('token', fn (): GuardInterface => $tokenGuard);
+        $manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => [
+                    'api' => ['driver' => 'token', 'provider' => 'users'],
+                ],
+            ])),
+            session: $this->session,
+            provider: new FakeUserProvider(),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(),
+            guardDriverRegistry: $registry,
+        );
+
+        $built = $manager->guard('api');
+        $manager->reset();
+
+        expect($built)->toBe($tokenGuard)
+            ->and($tokenGuard->resets)->toBe(1)
+            ->and($manager->guard('api'))->toBe($tokenGuard);
     });
 });
