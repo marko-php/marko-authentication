@@ -157,3 +157,53 @@ it('validates minimum cost requirement', function () {
     expect(fn () => $hasher->hash('secret'))
         ->toThrow(ValueError::class);
 });
+
+it('creates PasswordHasherInterface with verifyDummy method', function () {
+    $interface = new ReflectionClass(PasswordHasherInterface::class);
+
+    expect($interface->hasMethod('verifyDummy'))->toBeTrue();
+
+    $method = $interface->getMethod('verifyDummy');
+    expect($method->getNumberOfRequiredParameters())->toBe(1);
+
+    $param = $method->getParameters()[0];
+    expect($param->getName())->toBe('password')
+        ->and($param->getType()->getName())->toBe('string')
+        ->and($method->getReturnType()->getName())->toBe('void');
+});
+
+it('verifies dummy passwords against a well-formed bcrypt hash of the configured cost', function () {
+    $hasher = new BcryptPasswordHasher(cost: 5);
+    $dummyHash = new ReflectionMethod($hasher, 'dummyHash')->invoke($hasher);
+
+    $info = password_get_info($dummyHash);
+
+    expect($info['algo'])->toBe(PASSWORD_BCRYPT)
+        ->and($info['options']['cost'])->toBe(5)
+        ->and(strlen($dummyHash))->toBe(60)
+        ->and($hasher->needsRehash($dummyHash))->toBeFalse();
+});
+
+it('uses the default cost for the dummy hash when none is configured', function () {
+    $hasher = new BcryptPasswordHasher();
+    $dummyHash = new ReflectionMethod($hasher, 'dummyHash')->invoke($hasher);
+
+    expect(password_get_info($dummyHash)['options']['cost'])->toBe(BcryptPasswordHasher::DEFAULT_COST);
+});
+
+it('spends real hashing work on a dummy verification', function () {
+    $cheapHasher = new BcryptPasswordHasher(cost: 4);
+    $realHash = $cheapHasher->hash('secret');
+    $costlyHasher = new BcryptPasswordHasher(cost: 10);
+
+    $start = hrtime(true);
+    $costlyHasher->verifyDummy('attacker-guess');
+    $dummyNs = hrtime(true) - $start;
+
+    $start = hrtime(true);
+    $cheapHasher->verify('attacker-guess', $realHash);
+    $cheapNs = hrtime(true) - $start;
+
+    // A cost-10 check runs 64x the rounds of a cost-4 check; a short-circuited dummy would be far faster
+    expect($dummyNs)->toBeGreaterThan($cheapNs * 4);
+});
