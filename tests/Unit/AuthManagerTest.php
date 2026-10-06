@@ -8,7 +8,7 @@ use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
-use Marko\Authentication\Guard\TokenGuard;
+use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
@@ -43,6 +43,7 @@ test('it resolves default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $guard = $manager->guard();
@@ -72,6 +73,7 @@ test('it resolves named guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $guard = $manager->guard('api');
@@ -101,6 +103,7 @@ test('it caches guard instances', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $guard1 = $manager->guard('web');
@@ -130,6 +133,7 @@ test('it proxies check to default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // No user authenticated, so check() should return false
@@ -157,6 +161,7 @@ test('it proxies user to default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // No user authenticated, so user() should return null
@@ -184,6 +189,7 @@ test('it proxies id to default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // No user authenticated, so id() should return null
@@ -212,6 +218,7 @@ test('it proxies attempt to default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $result = $manager->attempt(['email' => 'test@example.com', 'password' => 'secret']);
@@ -242,6 +249,7 @@ test('it proxies logout to default guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Login first
@@ -275,6 +283,7 @@ test('it creates session guard for session driver', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $guard = $manager->guard('web');
@@ -282,7 +291,7 @@ test('it creates session guard for session driver', function (): void {
     expect($guard)->toBeInstanceOf(SessionGuard::class);
 });
 
-test('it creates token guard for token driver', function (): void {
+test('it creates the guard registered for the token driver', function (): void {
     $configRepo = new FakeConfigRepository([
         'authentication.remember.cookie.prefix' => 'remember_',
         'authentication.default.guard' => 'web',
@@ -304,11 +313,12 @@ test('it creates token guard for token driver', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $guard = $manager->guard('api');
 
-    expect($guard)->toBeInstanceOf(TokenGuard::class);
+    expect($guard)->toBeInstanceOf(StatelessFakeGuard::class);
 });
 
 test('it throws for unknown guard driver', function (): void {
@@ -332,6 +342,7 @@ test('it throws for unknown guard driver', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     $manager->guard('custom');
@@ -358,6 +369,7 @@ test('it throws for unknown guard', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Requesting a guard that doesn't exist in config should fail
@@ -393,6 +405,7 @@ test('it handles multiple guards', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Get multiple guards
@@ -408,7 +421,7 @@ test('it handles multiple guards', function (): void {
         ->and($apiGuard->getName())->toBe('api')
         ->and($adminGuard->getName())->toBe('admin')
         ->and($webGuard)->toBeInstanceOf(SessionGuard::class)
-        ->and($apiGuard)->toBeInstanceOf(TokenGuard::class)
+        ->and($apiGuard)->toBeInstanceOf(StatelessFakeGuard::class)
         ->and($adminGuard)->toBeInstanceOf(SessionGuard::class);
 
     // Verify they have correct names
@@ -443,6 +456,7 @@ describe('session guard collaborators', function (): void {
             eventDispatcher: $dispatcher,
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(),
+            guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
 
         $manager->guard()->login($user);
@@ -468,6 +482,7 @@ describe('session guard collaborators', function (): void {
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: $cookieJar,
             rememberTokenManager: new RememberTokenManager(),
+            guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
 
         $manager->guard()->login($user, remember: true);
@@ -497,6 +512,7 @@ describe('useGuard', function (): void {
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(),
+            guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
         );
     });
 

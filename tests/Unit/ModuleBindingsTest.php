@@ -6,6 +6,7 @@ use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\PasswordHasherInterface;
+use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
 use Marko\Core\Container\ContainerInterface;
 
@@ -101,4 +102,11 @@ it('registers GuardInterface as singleton', function () {
     $config = require $modulePath;
 
     expect($config['singletons'])->toContain(GuardInterface::class);
+});
+
+it('registers the guard driver registry as a singleton', function () {
+    $modulePath = dirname(__DIR__, 2) . '/module.php';
+    $config = require $modulePath;
+
+    expect($config['singletons'])->toContain(GuardDriverRegistry::class);
 });

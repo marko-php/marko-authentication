@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Middleware\AuthMiddleware;
+use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\Container;
 use Marko\Routing\Exceptions\HttpException;
@@ -45,6 +46,7 @@ function createAuthManagerWithUser(
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // If user provided, authenticate them
@@ -94,7 +96,7 @@ test('it blocks unauthenticated users', function (): void {
         ->and($response->statusCode())->not->toBe(200);
 });
 
-test('it throws a 401 HttpException for a token guard even when redirectTo is set', function (): void {
+test('it throws 401 instead of redirecting for a stateless guard', function (): void {
     $middleware = new AuthMiddleware(
         auth: createAuthManagerWithUser(),
         guard: 'api',
@@ -105,6 +107,73 @@ test('it throws a 401 HttpException for a token guard even when redirectTo is se
         new Request(),
         fn (Request $r) => new Response(body: 'success', statusCode: 200),
     ))->toThrow(HttpException::class, 'Unauthorized.');
+});
+
+test("it sends the stateless guard's challenge in the WWW-Authenticate header", function (): void {
+    $middleware = new AuthMiddleware(
+        auth: createAuthManagerWithUser(),
+        guard: 'api',
+    );
+
+    try {
+        $middleware->handle(
+            new Request(),
+            fn (Request $r) => new Response(body: 'success', statusCode: 200),
+        );
+        $this->fail('Expected HttpException');
+    } catch (HttpException $exception) {
+        expect($exception->getStatusCode())->toBe(401)
+            ->and($exception->getHeaders())->toBe(['WWW-Authenticate' => 'Bearer']);
+    }
+});
+
+test('it throws 401 instead of redirecting when the request wants JSON', function (): void {
+    $middleware = new AuthMiddleware(
+        auth: createAuthManagerWithUser(),
+        guard: 'web',
+        redirectTo: '/login',
+    );
+
+    try {
+        $middleware->handle(
+            new Request(server: ['HTTP_ACCEPT' => 'application/json']),
+            fn (Request $r) => new Response(body: 'success', statusCode: 200),
+        );
+        $this->fail('Expected HttpException');
+    } catch (HttpException $exception) {
+        expect($exception->getStatusCode())->toBe(401)
+            ->and($exception->getHeaders())->toBeEmpty();
+    }
+});
+
+test('it still redirects a guest on a stateful guard for an HTML request', function (): void {
+    $middleware = new AuthMiddleware(
+        auth: createAuthManagerWithUser(),
+        guard: 'web',
+        redirectTo: '/login',
+    );
+
+    $response = $middleware->handle(
+        new Request(server: ['HTTP_ACCEPT' => 'text/html,application/xhtml+xml']),
+        fn (Request $r) => new Response(body: 'success', statusCode: 200),
+    );
+
+    expect($response->statusCode())->toBe(302)
+        ->and($response->headers()['Location'])->toBe('/login');
+});
+
+test('it lets an authenticated request through a stateless guard', function (): void {
+    $authManager = createAuthManagerWithUser();
+    $guard = $authManager->guard('api');
+    assert($guard instanceof StatelessFakeGuard);
+    $guard->setUser(new FakeAuthenticatable(id: 7));
+
+    $response = new AuthMiddleware(auth: $authManager, guard: 'api')->handle(
+        new Request(),
+        fn (Request $r) => new Response(body: 'success', statusCode: 200),
+    );
+
+    expect($response->statusCode())->toBe(200);
 });
 
 test('it throws a 401 HttpException when unauthenticated and redirectTo is null', function (): void {
@@ -199,6 +268,7 @@ test('it supports specifying guard via parameter', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Authenticate on web guard

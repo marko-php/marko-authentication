@@ -8,6 +8,7 @@ use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\PasswordHasherInterface;
 use Marko\Authentication\Cookie\RequestCookieJar;
+use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Authentication\Token\RememberTokenManager;
@@ -41,6 +42,8 @@ return [
     ],
     'singletons' => [
         AuthManager::class,
+        // Drivers registered from module boot callbacks must reach the AuthManager.
+        GuardDriverRegistry::class,
         GuardInterface::class,
         RequestCookieJar::class,
         CookieJarInterface::class,

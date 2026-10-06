@@ -54,6 +54,45 @@ class AuthException extends Exception
         );
     }
 
+    public static function tokenDriverNotInstalled(
+        string $guard,
+    ): self {
+        return new self(
+            message: "Guard '$guard' uses the 'token' driver, but no token guard driver is installed",
+            context: "No factory is registered for the 'token' driver in GuardDriverRegistry",
+            suggestion: "Install the token guard with 'composer require marko/authentication-token', or register your own 'token' driver with GuardDriverRegistry::extend()",
+        );
+    }
+
+    /**
+     * @param list<string> $availableDrivers
+     */
+    public static function unknownGuardDriver(
+        string $guard,
+        string $driver,
+        array $availableDrivers,
+    ): self {
+        $available = implode(', ', $availableDrivers);
+
+        return new self(
+            message: "Unknown guard driver '$driver'",
+            context: "Guard '$guard' is configured with driver '$driver'. Available drivers: $available",
+            suggestion: "Use one of the available drivers in authentication.guards.$guard.driver, or register '$driver' with GuardDriverRegistry::extend() from a module.php boot callback",
+        );
+    }
+
+    public static function guardNameMismatch(
+        string $guard,
+        string $driver,
+        string $returnedName,
+    ): self {
+        return new self(
+            message: "The '$driver' guard driver returned a guard named '$returnedName' for guard '$guard'",
+            context: "AuthManager asked the '$driver' driver factory for guard '$guard'",
+            suggestion: 'Pass the $name argument the driver factory receives to the guard it builds, so getName() returns the configured guard name',
+        );
+    }
+
     public function getContext(): string
     {
         return $this->context;

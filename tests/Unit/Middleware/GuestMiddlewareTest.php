@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Middleware\GuestMiddleware;
+use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
@@ -42,6 +43,7 @@ function createGuestAuthManagerWithUser(
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // If user provided, authenticate them
@@ -143,6 +145,7 @@ test('it supports specifying guard via parameter', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Authenticate on web guard

@@ -9,8 +9,8 @@ use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Exceptions\AuthException;
+use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
-use Marko\Authentication\Guard\TokenGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Config\Exceptions\ConfigNotFoundException;
 use Marko\Core\Event\EventDispatcherInterface;
@@ -28,6 +28,7 @@ class AuthManager
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly CookieJarInterface $cookieJar,
         private readonly RememberTokenManager $rememberTokenManager,
+        private readonly GuardDriverRegistry $guardDriverRegistry = new GuardDriverRegistry(),
     ) {}
 
     /**
@@ -46,7 +47,7 @@ class AuthManager
         $guardConfig = $guardsConfig[$name] ?? [];
         $driver = $guardConfig['driver'] ?? 'session';
 
-        $guard = $this->createGuard($driver, $name);
+        $guard = $this->createGuard($driver, $name, $guardConfig);
 
         $this->guards[$name] = $guard;
 
@@ -68,21 +69,40 @@ class AuthManager
     }
 
     /**
+     * Build a guard: a driver registered in GuardDriverRegistry wins, then
+     * the built-in session driver. Anything else fails loudly.
+     *
+     * @param array<string, mixed> $guardConfig
      * @throws AuthException|ConfigNotFoundException
      */
     private function createGuard(
         string $driver,
         string $name,
+        array $guardConfig,
     ): GuardInterface {
-        return match ($driver) {
-            'session' => $this->createSessionGuard($name),
-            'token' => $this->createTokenGuard($name),
-            default => throw new AuthException(
-                message: "Unknown guard driver: $driver",
-                context: "Guard '$name' configured with driver '$driver'",
-                suggestion: "Use 'session' or 'token' as the guard driver, or register a custom driver",
-            ),
-        };
+        $guard = $this->guardDriverRegistry->create($driver, $name, $guardConfig, $this->provider);
+
+        if ($guard !== null) {
+            if ($guard->getName() !== $name) {
+                throw AuthException::guardNameMismatch($name, $driver, $guard->getName());
+            }
+
+            return $guard;
+        }
+
+        if ($driver === 'session') {
+            return $this->createSessionGuard($name);
+        }
+
+        if ($driver === 'token') {
+            throw AuthException::tokenDriverNotInstalled($name);
+        }
+
+        throw AuthException::unknownGuardDriver(
+            $name,
+            $driver,
+            array_values(array_unique(['session', ...$this->guardDriverRegistry->drivers()])),
+        );
     }
 
     /**
@@ -99,15 +119,6 @@ class AuthManager
             tokenManager: $this->rememberTokenManager,
             eventDispatcher: $this->eventDispatcher,
             rememberCookiePrefix: $this->config->rememberCookiePrefix(),
-        );
-    }
-
-    private function createTokenGuard(
-        string $name,
-    ): TokenGuard {
-        return new TokenGuard(
-            name: $name,
-            provider: $this->provider,
         );
     }
 

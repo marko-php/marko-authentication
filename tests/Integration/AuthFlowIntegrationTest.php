@@ -13,7 +13,7 @@ use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Guard\SessionGuard;
-use Marko\Authentication\Guard\TokenGuard;
+use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
@@ -45,6 +45,7 @@ test('complete login flow works', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Initial state - not authenticated
@@ -86,6 +87,7 @@ test('complete logout flow works', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Login first
@@ -164,6 +166,7 @@ test('guard switching works correctly', function (): void {
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(),
+        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
     );
 
     // Get different guards
@@ -173,7 +176,7 @@ test('guard switching works correctly', function (): void {
 
     // Verify correct guard types
     expect($webGuard)->toBeInstanceOf(SessionGuard::class)
-        ->and($apiGuard)->toBeInstanceOf(TokenGuard::class)
+        ->and($apiGuard)->toBeInstanceOf(StatelessFakeGuard::class)
         ->and($adminGuard)->toBeInstanceOf(SessionGuard::class)
         ->and($webGuard->getName())->toBe('web')
         ->and($apiGuard->getName())->toBe('api')

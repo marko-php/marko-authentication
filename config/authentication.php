@@ -22,7 +22,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | Guards define how users are authenticated for each request.
-    | Each guard has a driver and a provider.
+    | Each guard has a driver and a provider. The 'session' driver is
+    | built in; the 'token' driver comes from marko/authentication-token.
+    | Packages register more drivers with GuardDriverRegistry::extend().
     |
     */
     'guards' => [
