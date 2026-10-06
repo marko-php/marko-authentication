@@ -8,6 +8,7 @@ use Closure;
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
+use Marko\Authentication\Contracts\RememberTokenStorageInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Cookie\RequestCookieJar;
 use Marko\Authentication\Event\FailedLoginEvent;
@@ -15,7 +16,9 @@ use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Http\CurrentRequest;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
+use Marko\Authentication\Tests\Fixtures\InMemoryRememberTokenStorage;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Cache\Config\CacheConfig;
 use Marko\Cache\Contracts\CacheInterface;
@@ -168,6 +171,27 @@ describe('booted container', function (): void {
                 ->and($read('tokenManager'))->toBeInstanceOf(RememberTokenManager::class);
         },
     );
+
+    it('gives session guards the bound per-device remember token storage', function (): void {
+        $container = bootAuthContainer(new FakeUserProvider());
+        $storage = new InMemoryRememberTokenStorage(new FakeClock());
+        $container->instance(RememberTokenStorageInterface::class, $storage);
+
+        $guard = $container->get(GuardInterface::class);
+
+        expect(new ReflectionProperty(SessionGuard::class, 'rememberTokenStorage')->getValue($guard))
+            ->toBe($storage)
+            ->and(new ReflectionProperty(SessionGuard::class, 'currentRequest')->getValue($guard))
+            ->toBe($container->get(CurrentRequest::class));
+    });
+
+    it('falls back to the single-column remember token when no storage is bound', function (): void {
+        $container = bootAuthContainer(new FakeUserProvider());
+
+        $guard = $container->get(GuardInterface::class);
+
+        expect(new ReflectionProperty(SessionGuard::class, 'rememberTokenStorage')->getValue($guard))->toBeNull();
+    });
 
     it('shares one RequestCookieJar between the guard and the middleware', function (): void {
         $container = bootAuthContainer(new FakeUserProvider());

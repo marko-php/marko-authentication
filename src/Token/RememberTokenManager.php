@@ -33,6 +33,16 @@ class RememberTokenManager
         return bin2hex(random_bytes(32));
     }
 
+    /**
+     * A random, non-secret lookup key for a per-device token (the part before the colon in the cookie).
+     *
+     * @throws RandomException
+     */
+    public function generateSelector(): string
+    {
+        return bin2hex(random_bytes(16));
+    }
+
     public function hash(
         string $token,
     ): string {

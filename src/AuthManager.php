@@ -8,10 +8,12 @@ use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\LoginThrottleInterface;
+use Marko\Authentication\Contracts\RememberTokenStorageInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Http\CurrentRequest;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Config\Exceptions\ConfigNotFoundException;
 use Marko\Core\Contracts\ResettableInterface;
@@ -41,6 +43,8 @@ class AuthManager implements ResettableInterface
         private readonly RememberTokenManager $rememberTokenManager,
         private readonly GuardDriverRegistry $guardDriverRegistry = new GuardDriverRegistry(),
         private readonly ?LoginThrottleInterface $loginThrottle = null,
+        private readonly ?RememberTokenStorageInterface $rememberTokenStorage = null,
+        private readonly ?CurrentRequest $currentRequest = null,
     ) {}
 
     /**
@@ -145,6 +149,8 @@ class AuthManager implements ResettableInterface
             eventDispatcher: $this->eventDispatcher,
             rememberCookiePrefix: $this->config->rememberCookiePrefix(),
             loginThrottle: $this->loginThrottle,
+            rememberTokenStorage: $this->rememberTokenStorage,
+            currentRequest: $this->currentRequest,
         );
     }
 
