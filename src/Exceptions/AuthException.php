@@ -120,6 +120,44 @@ class AuthException extends Exception
         );
     }
 
+    public static function invalidGuardProvider(
+        string $guard,
+    ): self {
+        return new self(
+            message: "Guard '$guard' has an invalid provider",
+            context: "authentication.guards.$guard.provider must be a non-empty string naming an entry in authentication.providers",
+            suggestion: "Set authentication.guards.$guard.provider to a provider name, for example 'users', or remove the key to use the app's UserProviderInterface binding",
+        );
+    }
+
+    /**
+     * @param list<string> $configuredProviders
+     */
+    public static function undefinedProvider(
+        string $guard,
+        string $provider,
+        array $configuredProviders,
+    ): self {
+        $configured = $configuredProviders === [] ? '(none)' : implode(', ', $configuredProviders);
+
+        return new self(
+            message: "User provider '$provider' is not defined in authentication.providers",
+            context: "Guard '$guard' uses provider '$provider'. Configured providers: $configured",
+            suggestion: "Add authentication.providers.$provider (with a 'class' implementing UserProviderInterface), or fix authentication.guards.$guard.provider",
+        );
+    }
+
+    public static function invalidProviderClass(
+        string $provider,
+        string $class,
+    ): self {
+        return new self(
+            message: "User provider '$provider' has an invalid class '$class'",
+            context: "authentication.providers.$provider.class must name a class that implements Marko\\Authentication\\Contracts\\UserProviderInterface",
+            suggestion: "Point authentication.providers.$provider.class at a UserProviderInterface implementation, or remove the 'class' key to use the app's UserProviderInterface binding",
+        );
+    }
+
     public function getContext(): string
     {
         return $this->context;

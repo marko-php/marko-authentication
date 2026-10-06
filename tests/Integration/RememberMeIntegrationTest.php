@@ -20,6 +20,7 @@ use Marko\Clock\SystemClock;
 use Marko\Config\ConfigRepository;
 use Marko\Config\ConfigRepositoryInterface;
 use Marko\Core\Container\Container;
+use Marko\Core\Container\ContainerInterface;
 use Marko\Core\Event\Event;
 use Marko\Core\Event\EventDispatcher;
 use Marko\Core\Event\EventDispatcherInterface;
@@ -68,6 +69,8 @@ function bootAuthContainer(
     $session = require dirname($packageRoot) . '/session/config/session.php';
 
     $container = new Container();
+    // Application registers the container itself; UserProviderResolver resolves providers through it.
+    $container->instance(ContainerInterface::class, $container);
     $container->instance(ConfigRepositoryInterface::class, new ConfigRepository([
         'authentication' => $authentication,
         'session' => $session,

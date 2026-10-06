@@ -24,6 +24,16 @@ readonly class AuthConfig
     }
 
     /**
+     * The default provider name, or null when authentication.default.provider is not set.
+     */
+    public function defaultProviderOrNull(): ?string
+    {
+        return $this->config->has('authentication.default.provider')
+            ? $this->config->getString('authentication.default.provider')
+            : null;
+    }
+
+    /**
      * @return array<string, array<string, mixed>>
      */
     public function guards(): array
@@ -37,6 +47,18 @@ readonly class AuthConfig
     public function providers(): array
     {
         return $this->config->getArray('authentication.providers');
+    }
+
+    /**
+     * The configured providers, or null when authentication.providers is not set.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function providersOrNull(): ?array
+    {
+        return $this->config->has('authentication.providers')
+            ? $this->config->getArray('authentication.providers')
+            : null;
     }
 
     /**
