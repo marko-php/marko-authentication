@@ -10,13 +10,16 @@ use Marko\Authentication\AuthenticatableInterface;
 use Marko\Authentication\Contracts\CookieJarInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\LoginThrottleInterface;
+use Marko\Authentication\Contracts\RememberTokenStorageInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Exceptions\TooManyLoginAttemptsException;
+use Marko\Authentication\Http\CurrentRequest;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Authentication\Token\RememberTokenRecord;
 use Marko\Core\Contracts\ResettableInterface;
 use Marko\Core\Event\EventDispatcherInterface;
 use Marko\Session\Contracts\SessionInterface;
@@ -40,6 +43,8 @@ class SessionGuard implements GuardInterface, ResettableInterface
         private readonly ?EventDispatcherInterface $eventDispatcher = null,
         private readonly string $rememberCookiePrefix = 'remember_',
         private readonly ?LoginThrottleInterface $loginThrottle = null,
+        private readonly ?RememberTokenStorageInterface $rememberTokenStorage = null,
+        private readonly ?CurrentRequest $currentRequest = null,
     ) {}
 
     /**
@@ -89,6 +94,11 @@ class SessionGuard implements GuardInterface, ResettableInterface
      * requests authenticate from the session and the cookie is not consumed
      * again until that session ends.
      *
+     * With a RememberTokenStorageInterface bound, the cookie is a per-device
+     * "selector:validator" token. Without one (or for a cookie issued before
+     * the storage was installed) it is "id|token", checked against the user's
+     * single remember_token column.
+     *
      * @throws AuthException|DateMalformedStringException|RandomException
      */
     private function authenticateViaRememberCookie(): ?AuthenticatableInterface
@@ -103,16 +113,36 @@ class SessionGuard implements GuardInterface, ResettableInterface
             return null;
         }
 
-        $parts = explode('|', $cookieValue, 2);
-
-        if (count($parts) !== 2) {
-            return null;
+        if (str_contains($cookieValue, '|')) {
+            return $this->authenticateViaUserToken($cookieValue, $this->cookieJar, $this->tokenManager);
         }
 
-        [$id, $token] = $parts;
+        if ($this->rememberTokenStorage !== null) {
+            return $this->authenticateViaDeviceToken(
+                $cookieValue,
+                $this->cookieJar,
+                $this->tokenManager,
+                $this->rememberTokenStorage,
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * The single-column path: an "id|token" cookie checked against the user's remember_token.
+     *
+     * @throws AuthException|DateMalformedStringException|RandomException
+     */
+    private function authenticateViaUserToken(
+        string $cookieValue,
+        CookieJarInterface $cookieJar,
+        RememberTokenManager $tokenManager,
+    ): ?AuthenticatableInterface {
+        [$id, $token] = explode('|', $cookieValue, 2);
 
         // Providers store (and compare against) the hash, never the plain token
-        $user = $this->provider->retrieveByRememberToken($id, $this->tokenManager->hash($token));
+        $user = $this->provider->retrieveByRememberToken($id, $tokenManager->hash($token));
 
         if ($user === null) {
             return null;
@@ -121,25 +151,109 @@ class SessionGuard implements GuardInterface, ResettableInterface
         // Validate the token
         $storedHash = $user->getRememberToken();
 
-        if ($storedHash === null || !$this->tokenManager->validate($token, $storedHash)) {
+        if ($storedHash === null || !$tokenManager->validate($token, $storedHash)) {
             return null;
         }
 
         // The expiry lives server-side: the cookie's own Expires is client-controlled
         $expiresAt = $user->getRememberTokenExpiresAt();
 
-        if ($expiresAt === null || $this->tokenManager->hasExpired($expiresAt)) {
+        if ($expiresAt === null || $tokenManager->hasExpired($expiresAt)) {
             $this->provider->updateRememberToken($user, null, null);
-            $this->cookieJar->delete($this->getRememberCookieName());
+            $cookieJar->delete($this->getRememberCookieName());
 
             return null;
         }
 
         $this->startSession($user);
 
+        if ($this->rememberTokenStorage !== null) {
+            // Per-device storage is now installed: retire the column token, and the
+            // rotation below moves this device onto its own token
+            $this->provider->updateRememberToken($user, null, null);
+        }
+
         // Rotate the token (prevents replay) but keep the original expiry, so a
         // remember-me login has a fixed lifetime however often it is used
         $this->createRememberToken($user, $expiresAt);
+
+        $this->dispatchLoginEvent($user, true);
+
+        return $user;
+    }
+
+    /**
+     * The per-device path: a "selector:validator" cookie checked against this device's stored token.
+     *
+     * @throws AuthException|RandomException
+     */
+    private function authenticateViaDeviceToken(
+        string $cookieValue,
+        CookieJarInterface $cookieJar,
+        RememberTokenManager $tokenManager,
+        RememberTokenStorageInterface $rememberTokenStorage,
+    ): ?AuthenticatableInterface {
+        $parts = explode(':', $cookieValue, 2);
+
+        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+            return null;
+        }
+
+        [$selector, $validator] = $parts;
+        $record = $rememberTokenStorage->findBySelector($this->name, $selector);
+
+        if ($record === null) {
+            // Revoked, purged or never issued: this cookie can never log in again
+            $cookieJar->delete($this->getRememberCookieName());
+
+            return null;
+        }
+
+        // A wrong validator is a tampered cookie, or a request that lost a rotation
+        // race to another request from the same device: reject it, keep the token
+        if (!$tokenManager->validate($validator, $record->validatorHash)) {
+            return null;
+        }
+
+        // The expiry lives server-side: the cookie's own Expires is client-controlled
+        if ($tokenManager->hasExpired($record->expiresAt)) {
+            $rememberTokenStorage->deleteBySelector($this->name, $selector);
+            $cookieJar->delete($this->getRememberCookieName());
+
+            return null;
+        }
+
+        $user = $this->provider->retrieveById($record->userId);
+
+        if ($user === null) {
+            $rememberTokenStorage->deleteBySelector($this->name, $selector);
+            $cookieJar->delete($this->getRememberCookieName());
+
+            return null;
+        }
+
+        // Rotate only the validator (prevents replay). The selector and expiry are
+        // kept, so a remember-me login has a fixed lifetime however often it is used
+        $newValidator = $tokenManager->generate();
+        $rotated = $rememberTokenStorage->rotateValidator(
+            $this->name,
+            $selector,
+            $record->validatorHash,
+            $tokenManager->hash($newValidator),
+        );
+
+        if (!$rotated) {
+            // Another request from this device rotated it first and logs it in
+            return null;
+        }
+
+        $this->startSession($user);
+
+        $cookieJar->set(
+            $this->getRememberCookieName(),
+            $selector . ':' . $newValidator,
+            $tokenManager->minutesUntil($record->expiresAt),
+        );
 
         $this->dispatchLoginEvent($user, true);
 
@@ -260,9 +374,57 @@ class SessionGuard implements GuardInterface, ResettableInterface
             throw AuthException::rememberMeUnavailable($this->name);
         }
 
-        $token = $this->tokenManager->generate();
-        $hashedToken = $this->tokenManager->hash($token);
         $expiresAt ??= $this->tokenManager->expiresAt();
+
+        $cookieValue = $this->rememberTokenStorage !== null
+            ? $this->storeDeviceToken($user, $expiresAt, $this->tokenManager, $this->rememberTokenStorage)
+            : $this->storeUserToken($user, $expiresAt, $this->tokenManager);
+
+        $this->cookieJar->set(
+            $this->getRememberCookieName(),
+            $cookieValue,
+            $this->tokenManager->minutesUntil($expiresAt),
+        );
+    }
+
+    /**
+     * Store a token for this device only, returning the "selector:validator" cookie value.
+     *
+     * @throws RandomException
+     */
+    private function storeDeviceToken(
+        AuthenticatableInterface $user,
+        DateTimeImmutable $expiresAt,
+        RememberTokenManager $tokenManager,
+        RememberTokenStorageInterface $rememberTokenStorage,
+    ): string {
+        $selector = $tokenManager->generateSelector();
+        $validator = $tokenManager->generate();
+
+        $rememberTokenStorage->store(new RememberTokenRecord(
+            guard: $this->name,
+            userId: $user->getAuthIdentifier(),
+            selector: $selector,
+            validatorHash: $tokenManager->hash($validator),
+            expiresAt: $expiresAt,
+            userAgent: $this->currentUserAgent(),
+        ));
+
+        return $selector . ':' . $validator;
+    }
+
+    /**
+     * Store the token in the user's single remember_token column, returning the "id|token" cookie value.
+     *
+     * @throws AuthException|RandomException
+     */
+    private function storeUserToken(
+        AuthenticatableInterface $user,
+        DateTimeImmutable $expiresAt,
+        RememberTokenManager $tokenManager,
+    ): string {
+        $token = $tokenManager->generate();
+        $hashedToken = $tokenManager->hash($token);
 
         $this->provider->updateRememberToken($user, $hashedToken, $expiresAt);
 
@@ -273,12 +435,17 @@ class SessionGuard implements GuardInterface, ResettableInterface
             throw AuthException::rememberTokenNotStored($this->name, $this->provider::class);
         }
 
-        $cookieValue = $user->getAuthIdentifier() . '|' . $token;
-        $this->cookieJar->set(
-            $this->getRememberCookieName(),
-            $cookieValue,
-            $this->tokenManager->minutesUntil($expiresAt),
-        );
+        return $user->getAuthIdentifier() . '|' . $token;
+    }
+
+    /**
+     * The requesting browser's User-Agent, stored with a device token to tell a user's devices apart.
+     */
+    private function currentUserAgent(): ?string
+    {
+        $userAgent = $this->currentRequest?->get()?->header('User-Agent');
+
+        return $userAgent === null || $userAgent === '' ? null : mb_substr($userAgent, 0, 255);
     }
 
     private function getSessionKey(): string
@@ -330,8 +497,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
         $user = $this->user();
 
         if ($user !== null && $this->cookieJar !== null && $this->tokenManager !== null) {
-            $this->provider->updateRememberToken($user, null, null);
-            $this->cookieJar->delete($this->getRememberCookieName());
+            $this->forgetRememberToken($user, $this->cookieJar);
         }
 
         $this->session->remove($this->getSessionKey());
@@ -342,6 +508,43 @@ class SessionGuard implements GuardInterface, ResettableInterface
             // cannot be reused (shared machines, planted session cookies)
             $this->session->regenerate(true);
             $this->dispatchLogoutEvent($user);
+        }
+    }
+
+    /**
+     * Revoke this device's remember token and delete its cookie. With per-device
+     * storage the user's other devices stay remembered.
+     */
+    private function forgetRememberToken(
+        AuthenticatableInterface $user,
+        CookieJarInterface $cookieJar,
+    ): void {
+        if ($this->rememberTokenStorage === null) {
+            $this->provider->updateRememberToken($user, null, null);
+        } else {
+            $this->deleteDeviceToken($user, $cookieJar, $this->rememberTokenStorage);
+        }
+
+        $cookieJar->delete($this->getRememberCookieName());
+    }
+
+    private function deleteDeviceToken(
+        AuthenticatableInterface $user,
+        CookieJarInterface $cookieJar,
+        RememberTokenStorageInterface $rememberTokenStorage,
+    ): void {
+        $cookieValue = $cookieJar->get($this->getRememberCookieName());
+
+        if ($cookieValue === null || str_contains($cookieValue, '|') || !str_contains($cookieValue, ':')) {
+            return;
+        }
+
+        $selector = explode(':', $cookieValue, 2)[0];
+        $record = $rememberTokenStorage->findBySelector($this->name, $selector);
+
+        // Only the logged-in user's own token: a planted cookie cannot revoke another user's device
+        if ($record !== null && (string) $record->userId === (string) $user->getAuthIdentifier()) {
+            $rememberTokenStorage->deleteBySelector($this->name, $selector);
         }
     }
 
