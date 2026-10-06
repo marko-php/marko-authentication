@@ -61,6 +61,11 @@ describe('SessionGuard remember-me', function (): void {
                 return false;
             }
 
+            public function rehashPasswordIfNeeded(
+                AuthenticatableInterface $user,
+                array $credentials,
+            ): void {}
+
             public function retrieveByRememberToken(
                 int|string $identifier,
                 string $token,
@@ -366,6 +371,11 @@ describe('SessionGuard remember-me expiry', function (): void {
             ): bool {
                 return false;
             }
+
+            public function rehashPasswordIfNeeded(
+                AuthenticatableInterface $user,
+                array $credentials,
+            ): void {}
 
             public function retrieveByRememberToken(
                 int|string $identifier,

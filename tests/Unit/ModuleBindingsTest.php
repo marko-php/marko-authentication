@@ -8,8 +8,12 @@ use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\PasswordHasherInterface;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
+use Marko\Authentication\Hashing\HashManagerPasswordHasher;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\ContainerInterface;
+use Marko\Core\Module\ModuleManifest;
+use Marko\Core\Module\ModuleRepository;
+use Marko\Core\Module\ModuleRepositoryInterface;
 use Marko\Testing\Fake\FakeClock;
 use Psr\Clock\ClockInterface;
 
@@ -31,7 +35,7 @@ it('has bindings array', function () {
         ->and($config['bindings'])->toBeArray();
 });
 
-it('binds PasswordHasherInterface to BcryptPasswordHasher', function () {
+it('binds PasswordHasherInterface with a factory', function () {
     $modulePath = dirname(__DIR__, 2) . '/module.php';
     $config = require $modulePath;
 
@@ -67,6 +71,48 @@ it('creates password hasher with config cost', function () {
 
     expect($result)->toBeInstanceOf(BcryptPasswordHasher::class)
         ->and($result)->toBeInstanceOf(PasswordHasherInterface::class);
+});
+
+it('creates the bcrypt password hasher when marko/hashing is not loaded', function () {
+    $config = require dirname(__DIR__, 2) . '/module.php';
+    $binding = $config['bindings'][PasswordHasherInterface::class];
+
+    $authConfig = $this->createStub(AuthConfig::class);
+    $authConfig->method('bcryptCost')->willReturn(10);
+    $modules = new ModuleRepository([new ModuleManifest(name: 'marko/session', version: '1.0.0')]);
+
+    $container = $this->createStub(ContainerInterface::class);
+    $container->method('has')->willReturn(true);
+    $container->method('get')->willReturnCallback(
+        fn (string $id): object => match ($id) {
+            ModuleRepositoryInterface::class => $modules,
+            AuthConfig::class => $authConfig,
+        },
+    );
+
+    expect($binding($container))->toBeInstanceOf(BcryptPasswordHasher::class);
+});
+
+it('delegates password hashing to marko/hashing when that module is loaded', function () {
+    $config = require dirname(__DIR__, 2) . '/module.php';
+    $binding = $config['bindings'][PasswordHasherInterface::class];
+
+    $hashingHasher = $this->createStub(HashManagerPasswordHasher::class);
+    $modules = new ModuleRepository([
+        new ModuleManifest(name: 'marko/authentication', version: '1.0.0'),
+        new ModuleManifest(name: 'marko/hashing', version: '1.0.0'),
+    ]);
+
+    $container = $this->createStub(ContainerInterface::class);
+    $container->method('has')->willReturn(true);
+    $container->method('get')->willReturnCallback(
+        fn (string $id): object => match ($id) {
+            ModuleRepositoryInterface::class => $modules,
+            HashManagerPasswordHasher::class => $hashingHasher,
+        },
+    );
+
+    expect($binding($container))->toBe($hashingHasher);
 });
 
 it('builds RememberTokenManager with the bound clock from the module', function () {
