@@ -12,7 +12,11 @@
         "marko/session": "self.version"
     },
     "require-dev": {
+        "marko/hashing": "self.version",
         "marko/testing": "self.version"
+    },
+    "suggest": {
+        "marko/hashing": "Hash login passwords with its configured driver (HASH_DRIVER, e.g. argon2id) instead of the built-in bcrypt hasher"
     },
     "autoload": {
         "psr-4": {

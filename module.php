@@ -10,9 +10,12 @@ use Marko\Authentication\Contracts\PasswordHasherInterface;
 use Marko\Authentication\Cookie\RequestCookieJar;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
+use Marko\Authentication\Hashing\HashManagerPasswordHasher;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\ContainerInterface;
+use Marko\Core\Module\ModuleManifest;
+use Marko\Core\Module\ModuleRepositoryInterface;
 use Psr\Clock\ClockInterface;
 
 return [
@@ -22,6 +25,17 @@ return [
     ],
     'bindings' => [
         PasswordHasherInterface::class => function (ContainerInterface $container): PasswordHasherInterface {
+            // With marko/hashing loaded, its driver config (HASH_DRIVER) governs login passwords too
+            if (
+                $container->has(ModuleRepositoryInterface::class)
+                && array_any(
+                    $container->get(ModuleRepositoryInterface::class)->all(),
+                    fn (ModuleManifest $module): bool => $module->name === 'marko/hashing',
+                )
+            ) {
+                return $container->get(HashManagerPasswordHasher::class);
+            }
+
             $config = $container->get(AuthConfig::class);
 
             return new BcryptPasswordHasher(

@@ -173,6 +173,9 @@ class SessionGuard implements GuardInterface, ResettableInterface
             return false;
         }
 
+        // Upgrade the stored hash while the plain password is at hand (cost or algorithm changed)
+        $this->provider->rehashPasswordIfNeeded($user, $credentials);
+
         $this->login($user);
 
         return true;

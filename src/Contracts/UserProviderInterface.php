@@ -36,6 +36,21 @@ interface UserProviderInterface
     ): bool;
 
     /**
+     * Re-hash and store the user's password when its stored hash is out of date.
+     *
+     * SessionGuard calls this only after validateCredentials() has accepted the same credentials.
+     * Implementations check PasswordHasherInterface::needsRehash() against the stored hash and,
+     * when it returns true, hash the plain password from $credentials and persist the new hash,
+     * so raising the cost or switching algorithm upgrades each account on its next login.
+     *
+     * @param array<string, mixed> $credentials
+     */
+    public function rehashPasswordIfNeeded(
+        AuthenticatableInterface $user,
+        array $credentials,
+    ): void;
+
+    /**
      * Retrieve a user by their unique identifier and "remember me" token.
      */
     public function retrieveByRememberToken(

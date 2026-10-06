@@ -179,6 +179,30 @@ test('it fails attempt with invalid credentials', function (): void {
         ->and($session->has('auth_web_user_id'))->toBeFalse();
 });
 
+test('it asks the provider to rehash the password after a successful attempt', function (): void {
+    $session = new FakeSession();
+    $session->start();
+    $user = new FakeAuthenticatable(id: 42);
+    $provider = new FakeUserProvider([42 => $user]);
+    $guard = new SessionGuard(session: $session, provider: $provider, name: 'web');
+    $credentials = ['email' => 'test@example.com', 'password' => 'secret'];
+
+    $guard->attempt($credentials);
+
+    expect($provider->rehashChecks)->toBe([['user' => $user, 'credentials' => $credentials]]);
+});
+
+test('it does not rehash the password when the attempt fails', function (): void {
+    $session = new FakeSession();
+    $session->start();
+    $provider = new FakeUserProvider([42 => new FakeAuthenticatable(id: 42)], fn () => false);
+    $guard = new SessionGuard(session: $session, provider: $provider, name: 'web');
+
+    $guard->attempt(['email' => 'test@example.com', 'password' => 'wrong']);
+
+    expect($provider->rehashChecks)->toBe([]);
+});
+
 test('it logs out user and clears session', function (): void {
     $session = new FakeSession();
     $session->set('auth_web_user_id', 42);
@@ -757,6 +781,11 @@ test('it forgets the cached user without destroying the session', function (): v
         ): bool {
             return false;
         }
+
+        public function rehashPasswordIfNeeded(
+            AuthenticatableInterface $user,
+            array $credentials,
+        ): void {}
 
         public function retrieveByRememberToken(
             int|string $identifier,
