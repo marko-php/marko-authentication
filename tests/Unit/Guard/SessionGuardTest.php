@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Marko\Authentication\Tests\Unit\Guard;
 
+use DateTimeImmutable;
 use Marko\Authentication\AuthenticatableInterface;
 use Marko\Authentication\Contracts\GuardInterface;
 use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Core\Event\Event;
+use Marko\Core\Event\EventDispatcherInterface;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeCookieJar;
@@ -199,6 +202,71 @@ test('it logs out user and clears session', function (): void {
         ->and($guard->check())->toBeFalse();
 });
 
+test('it regenerates the session ID on logout so the logged-out ID cannot be reused', function (): void {
+    $session = new FakeSession();
+    $session->start();
+    $session->set('auth_web_user_id', 42);
+    $loggedInId = $session->getId();
+
+    $guard = new SessionGuard(
+        session: $session,
+        provider: new FakeUserProvider([42 => new FakeAuthenticatable(id: 42)]),
+        name: 'web',
+    );
+
+    $guard->logout();
+
+    expect($session->regenerated)->toBeTrue()
+        ->and($session->getId())->not->toBe($loggedInId);
+});
+
+test('it dispatches LogoutEvent after the session ID is regenerated', function (): void {
+    $session = new FakeSession();
+    $session->start();
+    $session->set('auth_web_user_id', 42);
+    $dispatcher = new class ($session) implements EventDispatcherInterface
+    {
+        public ?bool $regeneratedWhenDispatched = null;
+
+        public function __construct(
+            private readonly FakeSession $session,
+        ) {}
+
+        public function dispatch(
+            Event $event,
+        ): void {
+            $this->regeneratedWhenDispatched = $this->session->regenerated;
+        }
+    };
+
+    $guard = new SessionGuard(
+        session: $session,
+        provider: new FakeUserProvider([42 => new FakeAuthenticatable(id: 42)]),
+        name: 'web',
+        eventDispatcher: $dispatcher,
+    );
+
+    $guard->logout();
+
+    // Observers (e.g. CSRF token rotation) write into the new session
+    expect($dispatcher->regeneratedWhenDispatched)->toBeTrue();
+});
+
+test('it does not regenerate the session when a guest logs out', function (): void {
+    $session = new FakeSession();
+    $session->start();
+
+    $guard = new SessionGuard(
+        session: $session,
+        provider: new FakeUserProvider(),
+        name: 'web',
+    );
+
+    $guard->logout();
+
+    expect($session->regenerated)->toBeFalse();
+});
+
 test('it regenerates session ID on login', function (): void {
     $session = new FakeSession();
     $session->start();
@@ -305,6 +373,7 @@ test('it stores remember token in user provider', function (): void {
 
 test('it authenticates via remember token cookie', function (): void {
     $session = new FakeSession();
+    $session->start();
     $user = new FakeAuthenticatable(id: 42);
 
     // Simulate a valid remember token cookie
@@ -312,6 +381,7 @@ test('it authenticates via remember token cookie', function (): void {
     $plainToken = $tokenManager->generate();
     $hashedToken = $tokenManager->hash($plainToken);
     $user->setRememberToken($hashedToken);
+    $user->setRememberTokenExpiresAt($tokenManager->expiresAt());
 
     $cookieJar = new FakeCookieJar();
     $cookieJar->set('remember_web', '42|' . $plainToken);
@@ -371,6 +441,7 @@ test('it clears remember token on logout', function (): void {
 
 test('it regenerates remember token on each use', function (): void {
     $session = new FakeSession();
+    $session->start();
     $user = new FakeAuthenticatable(id: 42);
 
     // Simulate a valid remember token cookie
@@ -378,6 +449,7 @@ test('it regenerates remember token on each use', function (): void {
     $originalPlainToken = $tokenManager->generate();
     $originalHashedToken = $tokenManager->hash($originalPlainToken);
     $user->setRememberToken($originalHashedToken);
+    $user->setRememberTokenExpiresAt($tokenManager->expiresAt());
 
     $cookieJar = new FakeCookieJar();
     $cookieJar->set('remember_web', '42|' . $originalPlainToken);
@@ -696,6 +768,7 @@ test('it forgets the cached user without destroying the session', function (): v
         public function updateRememberToken(
             AuthenticatableInterface $user,
             ?string $token,
+            ?DateTimeImmutable $expiresAt,
         ): void {}
     };
 

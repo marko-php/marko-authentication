@@ -118,3 +118,29 @@ it('filters expired tokens against the injected clock', function () {
 
     expect($manager->filterExpired($tokens))->toHaveCount(1);
 });
+
+it('computes the expiry of a token issued now from the lifetime', function () {
+    $manager = new RememberTokenManager(new FakeClock('2026-01-01 12:00:00'), lifetimeMinutes: 90);
+
+    expect($manager->expiresAt())->toEqual(new DateTimeImmutable('2026-01-01 13:30:00'));
+});
+
+it('reports a token expired from its expiry instant onwards', function () {
+    $clock = new FakeClock('2026-01-01 12:00:00');
+    $manager = new RememberTokenManager($clock);
+    $expiresAt = new DateTimeImmutable('2026-01-01 12:10:00');
+
+    expect($manager->hasExpired($expiresAt))->toBeFalse();
+
+    $clock->travel('+10 minutes');
+
+    expect($manager->hasExpired($expiresAt))->toBeTrue();
+});
+
+it('rounds the minutes until an expiry up, never below one', function () {
+    $manager = new RememberTokenManager(new FakeClock('2026-01-01 12:00:00'));
+
+    expect($manager->minutesUntil(new DateTimeImmutable('2026-01-01 12:30:00')))->toBe(30)
+        ->and($manager->minutesUntil(new DateTimeImmutable('2026-01-01 12:00:30')))->toBe(1)
+        ->and($manager->minutesUntil(new DateTimeImmutable('2026-01-01 11:00:00')))->toBe(1);
+});

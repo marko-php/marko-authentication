@@ -49,8 +49,8 @@ class AuthException extends Exception
     ): self {
         return new self(
             message: "Remember-me was requested on guard '$guard', but the user provider did not store the remember token",
-            context: "After $provider::updateRememberToken(), the user's getRememberToken() did not return the new token hash",
-            suggestion: 'Make updateRememberToken() call $user->setRememberToken($token) and persist it (e.g. a remember_token column), or log in without remember: true',
+            context: "After $provider::updateRememberToken(), the user's getRememberToken() or getRememberTokenExpiresAt() did not return the new token hash and expiry",
+            suggestion: 'Make updateRememberToken() call $user->setRememberToken($token) and $user->setRememberTokenExpiresAt($expiresAt) and persist both (e.g. remember_token and remember_token_expires_at columns), or log in without remember: true',
         );
     }
 

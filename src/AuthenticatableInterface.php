@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Marko\Authentication;
 
+use DateTimeImmutable;
+
 interface AuthenticatableInterface
 {
     /**
@@ -31,6 +33,20 @@ interface AuthenticatableInterface
      */
     public function setRememberToken(
         ?string $token,
+    ): void;
+
+    /**
+     * Get when the "remember me" token stops being accepted.
+     *
+     * Null means no expiry is stored, and SessionGuard rejects the token.
+     */
+    public function getRememberTokenExpiresAt(): ?DateTimeImmutable;
+
+    /**
+     * Set when the "remember me" token stops being accepted.
+     */
+    public function setRememberTokenExpiresAt(
+        ?DateTimeImmutable $expiresAt,
     ): void;
 
     /**
