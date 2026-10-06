@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
+use Marko\Authentication\Exceptions\UnauthenticatedException;
 use Marko\Authentication\Middleware\AuthMiddleware;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
@@ -308,4 +309,41 @@ test('it uses default guard when not specified', function (): void {
     // User is authenticated on default guard, so request passes through
     expect($response)->toBe($expectedResponse)
         ->and($response->statusCode())->toBe(200);
+});
+
+test('it throws an UnauthenticatedException carrying the challenge for a stateless guard', function (): void {
+    $middleware = new AuthMiddleware(
+        auth: createAuthManagerWithUser(),
+        guard: 'api',
+    );
+
+    try {
+        $middleware->handle(
+            new Request(),
+            fn (Request $r) => new Response(body: 'success', statusCode: 200),
+        );
+        $this->fail('Expected UnauthenticatedException');
+    } catch (UnauthenticatedException $exception) {
+        expect($exception->getHeaders())->toBe(['WWW-Authenticate' => 'Bearer'])
+            ->and($exception->getContext())->toContain("'api'");
+    }
+});
+
+test('it throws an UnauthenticatedException with no challenge for JSON on a stateful guard', function (): void {
+    $middleware = new AuthMiddleware(
+        auth: createAuthManagerWithUser(),
+        guard: 'web',
+    );
+
+    try {
+        $middleware->handle(
+            new Request(server: ['HTTP_ACCEPT' => 'application/json']),
+            fn (Request $r) => new Response(body: 'success', statusCode: 200),
+        );
+        $this->fail('Expected UnauthenticatedException');
+    } catch (UnauthenticatedException $exception) {
+        expect($exception->getStatusCode())->toBe(401)
+            ->and($exception->getHeaders())->toBeEmpty()
+            ->and($exception->getContext())->toContain("'web'");
+    }
 });

@@ -10,8 +10,9 @@ namespace Marko\Authentication\Contracts;
  * requests.
  *
  * Its clients cannot follow a login redirect, so AuthMiddleware always
- * answers an unauthenticated request on a stateless guard with a 401 that
- * carries this guard's WWW-Authenticate challenge. The stateful methods of
+ * answers an unauthenticated request on a stateless guard with a 401. That
+ * 401, like every framework 401 for a guest (UnauthenticatedException), carries
+ * this guard's WWW-Authenticate challenge. The stateful methods of
  * GuardInterface (attempt, login, loginById, logout) have no meaning here
  * and must throw an exception that explains how to issue or revoke
  * credentials instead.

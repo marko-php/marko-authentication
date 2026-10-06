@@ -7,8 +7,8 @@ namespace Marko\Authentication\Middleware;
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Contracts\StatelessGuardInterface;
 use Marko\Authentication\Exceptions\AuthException;
+use Marko\Authentication\Exceptions\UnauthenticatedException;
 use Marko\Config\Exceptions\ConfigNotFoundException;
-use Marko\Routing\Exceptions\HttpException;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Routing\Middleware\MiddlewareInterface;
@@ -16,7 +16,7 @@ use Marko\Routing\Middleware\MiddlewareInterface;
 /**
  * Lets authenticated requests through.
  *
- * An unauthenticated request throws a 401 HttpException, which the routing
+ * An unauthenticated request throws a 401 UnauthenticatedException, which the routing
  * pipeline renders through ExceptionRenderer as JSON or HTML according to the
  * request's Accept header. The one exception is a browser request on a
  * stateful guard: it is redirected to `redirectTo` when one is set.
@@ -35,7 +35,7 @@ readonly class AuthMiddleware implements MiddlewareInterface
     ) {}
 
     /**
-     * @throws AuthException|ConfigNotFoundException|HttpException
+     * @throws AuthException|ConfigNotFoundException|UnauthenticatedException
      */
     public function handle(
         Request $request,
@@ -47,18 +47,14 @@ readonly class AuthMiddleware implements MiddlewareInterface
             return $next($request);
         }
 
-        if ($guard instanceof StatelessGuardInterface) {
-            throw new HttpException(
-                statusCode: 401,
-                message: 'Unauthorized.',
-                headers: ['WWW-Authenticate' => $guard->getChallenge()],
-            );
-        }
-
-        if ($this->redirectTo !== null && !$request->wantsJson()) {
+        if (
+            !$guard instanceof StatelessGuardInterface
+            && $this->redirectTo !== null
+            && !$request->wantsJson()
+        ) {
             return Response::redirect($this->redirectTo);
         }
 
-        throw HttpException::unauthorized('Unauthorized.');
+        throw UnauthenticatedException::forGuard($guard);
     }
 }
