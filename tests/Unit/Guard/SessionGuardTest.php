@@ -216,6 +216,24 @@ test('it regenerates session ID on login', function (): void {
     expect($session->regenerated)->toBeTrue();
 });
 
+test('it logs in on an armed session', function (): void {
+    $session = new FakeSession();
+    $session->arm();
+    $user = new FakeAuthenticatable(id: 42);
+
+    $guard = new SessionGuard(
+        session: $session,
+        provider: new FakeUserProvider(),
+        name: 'web',
+    );
+
+    $guard->login($user);
+
+    expect($session->started)->toBeTrue()
+        ->and($session->regenerated)->toBeTrue()
+        ->and($session->get('auth_web_user_id'))->toBe(42);
+});
+
 test('it throws AuthException when session not available', function (): void {
     $session = new FakeSession();
     // started defaults to false, no need to set it

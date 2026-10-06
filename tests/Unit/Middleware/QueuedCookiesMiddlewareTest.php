@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Cookie\RequestCookieJar;
 use Marko\Authentication\Middleware\QueuedCookiesMiddleware;
+use Marko\Routing\Attributes\RunsOnUnmatched;
 use Marko\Routing\Http\Request;
 use Marko\Routing\Http\Response;
 use Marko\Routing\Middleware\MiddlewareInterface;
@@ -89,3 +90,9 @@ describe('QueuedCookiesMiddleware', function (): void {
         expect($jar->pullQueuedCookies())->toBeEmpty();
     });
 });
+
+it('does not run on unmatched requests, where no session, guard or controller runs there, so nothing can queue a cookie', function (): void {
+    $attributes = new ReflectionClass(QueuedCookiesMiddleware::class)->getAttributes(RunsOnUnmatched::class);
+
+    expect($attributes)->toBe([]);
+})->issue(267);

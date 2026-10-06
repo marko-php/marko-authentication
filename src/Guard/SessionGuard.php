@@ -173,7 +173,7 @@ class SessionGuard implements GuardInterface, ResettableInterface
         AuthenticatableInterface $user,
         bool $remember = false,
     ): void {
-        $this->ensureSessionStarted();
+        $this->ensureSessionAvailable();
         $this->session->set($this->getSessionKey(), $user->getAuthIdentifier());
         $this->session->regenerate();
         $this->cachedUser = $user;
@@ -236,9 +236,9 @@ class SessionGuard implements GuardInterface, ResettableInterface
     /**
      * @throws AuthException
      */
-    private function ensureSessionStarted(): void
+    private function ensureSessionAvailable(): void
     {
-        if (!$this->session->started) {
+        if (!$this->session->isAvailable()) {
             throw new AuthException(
                 message: 'Session not started',
                 context: 'SessionGuard requires an active session',
