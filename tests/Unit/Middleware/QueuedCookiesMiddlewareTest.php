@@ -91,7 +91,7 @@ describe('QueuedCookiesMiddleware', function (): void {
     });
 });
 
-it('does not run on unmatched requests, where no session, guard or controller runs there, so nothing can queue a cookie', function (): void {
+it('does not run on unmatched requests, where nothing can queue a cookie', function (): void {
     $attributes = new ReflectionClass(QueuedCookiesMiddleware::class)->getAttributes(RunsOnUnmatched::class);
 
     expect($attributes)->toBe([]);
