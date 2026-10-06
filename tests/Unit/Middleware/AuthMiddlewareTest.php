@@ -6,6 +6,7 @@ use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Exceptions\UnauthenticatedException;
 use Marko\Authentication\Middleware\AuthMiddleware;
+use Marko\Authentication\Tests\Fixtures\BoundProviderResolver;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Core\Container\Container;
@@ -44,7 +45,7 @@ function createAuthManagerWithUser(
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -266,7 +267,7 @@ test('it supports specifying guard via parameter', function (): void {
     $authManager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),

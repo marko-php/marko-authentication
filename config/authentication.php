@@ -43,15 +43,14 @@ return [
     | User Providers
     |--------------------------------------------------------------------------
     |
-    | Providers define how users are retrieved from your database or
-    | other storage mechanisms.
+    | Providers define where a guard loads its users from. A guard names its
+    | provider with its 'provider' key. 'class' names a UserProviderInterface
+    | implementation, resolved from the container. A provider without a
+    | 'class' uses the app's UserProviderInterface binding.
     |
     */
     'providers' => [
-        'users' => [
-            'driver' => 'database',
-            'table' => 'users',
-        ],
+        'users' => [],
     ],
 
     /*

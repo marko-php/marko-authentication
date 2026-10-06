@@ -34,7 +34,7 @@ class AuthManager implements ResettableInterface
     public function __construct(
         private readonly AuthConfig $config,
         private readonly SessionInterface $session,
-        private readonly UserProviderInterface $provider,
+        private readonly UserProviderResolver $providerResolver,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly CookieJarInterface $cookieJar,
         private readonly RememberTokenManager $rememberTokenManager,
@@ -90,7 +90,8 @@ class AuthManager implements ResettableInterface
 
     /**
      * Build a guard: a driver registered in GuardDriverRegistry wins, then
-     * the built-in session driver. Anything else fails loudly.
+     * the built-in session driver. Anything else fails loudly. Each guard
+     * gets the user provider its config names (UserProviderResolver).
      *
      * @param array<string, mixed> $guardConfig
      * @throws AuthException|ConfigNotFoundException
@@ -100,7 +101,8 @@ class AuthManager implements ResettableInterface
         string $name,
         array $guardConfig,
     ): GuardInterface {
-        $guard = $this->guardDriverRegistry->create($driver, $name, $guardConfig, $this->provider);
+        $provider = $this->providerResolver->forGuard($name, $guardConfig);
+        $guard = $this->guardDriverRegistry->create($driver, $name, $guardConfig, $provider);
 
         if ($guard !== null) {
             if ($guard->getName() !== $name) {
@@ -111,7 +113,7 @@ class AuthManager implements ResettableInterface
         }
 
         if ($driver === 'session') {
-            return $this->createSessionGuard($name);
+            return $this->createSessionGuard($name, $provider);
         }
 
         if ($driver === 'token') {
@@ -130,10 +132,11 @@ class AuthManager implements ResettableInterface
      */
     private function createSessionGuard(
         string $name,
+        UserProviderInterface $provider,
     ): SessionGuard {
         return new SessionGuard(
             session: $this->session,
-            provider: $this->provider,
+            provider: $provider,
             name: $name,
             cookieJar: $this->cookieJar,
             tokenManager: $this->rememberTokenManager,

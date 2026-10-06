@@ -5,12 +5,16 @@ declare(strict_types=1);
 use Marko\Authentication\AuthManager;
 use Marko\Authentication\Config\AuthConfig;
 use Marko\Authentication\Contracts\GuardInterface;
+use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Tests\Fixtures\BoundProviderResolver;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Authentication\UserProviderResolver;
+use Marko\Core\Container\Container;
 use Marko\Core\Contracts\ResettableInterface;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeClock;
@@ -20,6 +24,8 @@ use Marko\Testing\Fake\FakeEventDispatcher;
 use Marko\Testing\Fake\FakeGuard;
 use Marko\Testing\Fake\FakeSession;
 use Marko\Testing\Fake\FakeUserProvider;
+
+class PerGuardAdminProvider extends FakeUserProvider {}
 
 test('auth manager exists', function (): void {
     expect(class_exists(AuthManager::class))->toBeTrue();
@@ -42,7 +48,7 @@ test('it resolves default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -72,7 +78,7 @@ test('it resolves named guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -102,7 +108,7 @@ test('it caches guard instances', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -132,7 +138,7 @@ test('it proxies check to default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -160,7 +166,7 @@ test('it proxies user to default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -188,7 +194,7 @@ test('it proxies id to default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -217,7 +223,7 @@ test('it proxies attempt to default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -248,7 +254,7 @@ test('it proxies logout to default guard', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -282,7 +288,7 @@ test('it creates session guard for session driver', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -312,7 +318,7 @@ test('it creates the guard registered for the token driver', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -341,7 +347,7 @@ test('it throws for unknown guard driver', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -367,7 +373,7 @@ describe('undefined guards', function (): void {
                 ],
             ])),
             session: $session,
-            provider: new FakeUserProvider(),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider()),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -423,7 +429,7 @@ describe('undefined guards', function (): void {
                 ],
             ])),
             session: $session,
-            provider: new FakeUserProvider(),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider()),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -468,7 +474,7 @@ test('it handles multiple guards', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -519,7 +525,7 @@ describe('session guard collaborators', function (): void {
                 'authentication.guards' => ['web' => ['driver' => 'session']],
             ])),
             session: $session,
-            provider: new FakeUserProvider([42 => $user]),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider([42 => $user])),
             eventDispatcher: $dispatcher,
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -545,7 +551,7 @@ describe('session guard collaborators', function (): void {
                 'authentication.guards' => ['web' => ['driver' => 'session']],
             ])),
             session: $session,
-            provider: new FakeUserProvider([42 => $user]),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider([42 => $user])),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: $cookieJar,
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -575,7 +581,7 @@ describe('useGuard', function (): void {
                 ],
             ])),
             session: $session,
-            provider: new FakeUserProvider(),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider()),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -633,7 +639,9 @@ describe('reset', function (): void {
                 ],
             ])),
             session: $this->session,
-            provider: new FakeUserProvider(users: [1 => new FakeAuthenticatable(id: 1)]),
+            providerResolver: BoundProviderResolver::for(
+                new FakeUserProvider(users: [1 => new FakeAuthenticatable(id: 1)]),
+            ),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -688,7 +696,7 @@ describe('reset', function (): void {
                 ],
             ])),
             session: $this->session,
-            provider: new FakeUserProvider(),
+            providerResolver: BoundProviderResolver::for(new FakeUserProvider()),
             eventDispatcher: new FakeEventDispatcher(),
             cookieJar: new FakeCookieJar(),
             rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -701,5 +709,69 @@ describe('reset', function (): void {
         expect($built)->toBe($tokenGuard)
             ->and($tokenGuard->resets)->toBe(1)
             ->and($manager->guard('api'))->toBe($tokenGuard);
+    });
+});
+
+describe('per-guard user providers', function (): void {
+    beforeEach(function (): void {
+        $this->session = new FakeSession();
+        $this->session->start();
+
+        $this->customer = new FakeAuthenticatable(id: 1);
+        $this->admin = new FakeAuthenticatable(id: 1);
+        $this->customers = new FakeUserProvider(users: [1 => $this->customer]);
+        $this->admins = new PerGuardAdminProvider(users: [1 => $this->admin]);
+
+        $container = new Container();
+        $container->instance(UserProviderInterface::class, $this->customers);
+        $container->instance(PerGuardAdminProvider::class, $this->admins);
+
+        $config = new AuthConfig(new FakeConfigRepository([
+            'authentication.remember.cookie.prefix' => 'remember_',
+            'authentication.default.guard' => 'session',
+            'authentication.guards' => [
+                'session' => ['driver' => 'session', 'provider' => 'users'],
+                'admin' => ['driver' => 'session', 'provider' => 'admins'],
+            ],
+            'authentication.providers' => [
+                'users' => [],
+                'admins' => ['class' => PerGuardAdminProvider::class],
+            ],
+        ]));
+
+        $this->manager = new AuthManager(
+            config: $config,
+            session: $this->session,
+            providerResolver: new UserProviderResolver($config, $container),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
+        );
+    });
+
+    it('gives each guard the provider its config names', function (): void {
+        $web = $this->manager->guard('session');
+        $admin = $this->manager->guard('admin');
+
+        expect($web)->toBeInstanceOf(SessionGuard::class)
+            ->and($admin)->toBeInstanceOf(SessionGuard::class)
+            ->and($web->provider)->toBe($this->customers)
+            ->and($admin->provider)->toBe($this->admins);
+    });
+
+    it('does not authenticate the admin guard from a frontend login', function (): void {
+        $this->manager->guard('session')->loginById(1);
+
+        expect($this->manager->guard('session')->user())->toBe($this->customer)
+            ->and($this->manager->guard('admin')->check())->toBeFalse()
+            ->and($this->session->get('auth_session_user_id'))->toBe(1)
+            ->and($this->session->get('auth_admin_user_id'))->toBeNull();
+    });
+
+    it('does not authenticate the frontend guard from an admin login', function (): void {
+        $this->manager->guard('admin')->loginById(1);
+
+        expect($this->manager->guard('admin')->user())->toBe($this->admin)
+            ->and($this->manager->guard('session')->check())->toBeFalse();
     });
 });
