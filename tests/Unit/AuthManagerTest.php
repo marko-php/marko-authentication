@@ -10,6 +10,7 @@ use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
+use Marko\Core\Contracts\ResettableInterface;
 use Marko\Testing\Fake\FakeAuthenticatable;
 use Marko\Testing\Fake\FakeConfigRepository;
 use Marko\Testing\Fake\FakeCookieJar;
@@ -540,5 +541,55 @@ describe('useGuard', function (): void {
 
         expect($built)->toBeInstanceOf(SessionGuard::class)
             ->and($this->manager->guard('web'))->toBe($guard);
+    });
+});
+
+describe('reset', function (): void {
+    beforeEach(function (): void {
+        $this->session = new FakeSession();
+        $this->session->start();
+
+        $this->manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => [
+                    'web' => ['driver' => 'session', 'provider' => 'users'],
+                    'api' => ['driver' => 'token', 'provider' => 'users'],
+                ],
+            ])),
+            session: $this->session,
+            provider: new FakeUserProvider(users: [1 => new FakeAuthenticatable(id: 1)]),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(),
+        );
+    });
+
+    it('is resettable, so a long-running worker clears it between requests', function (): void {
+        expect($this->manager)->toBeInstanceOf(ResettableInterface::class);
+    });
+
+    it('clears the user a session guard it built cached for the previous request', function (): void {
+        $this->manager->guard('web')->loginById(1);
+
+        // The next request carries no session: only the guard's cache remembers the user.
+        $this->session->remove('auth_web_user_id');
+        $this->manager->reset();
+
+        expect($this->manager->guard('web')->check())->toBeFalse();
+    });
+
+    it('keeps the guards it built, and guards registered with useGuard, in place', function (): void {
+        $built = $this->manager->guard('web');
+        $registered = new FakeGuard(name: 'api');
+        $registered->setUser(new FakeAuthenticatable(id: 7));
+        $this->manager->useGuard('api', $registered);
+
+        $this->manager->reset();
+
+        expect($this->manager->guard('web'))->toBe($built)
+            ->and($this->manager->guard('api'))->toBe($registered)
+            ->and($registered->id())->toBe(7);
     });
 });

@@ -13,10 +13,20 @@ use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Config\Exceptions\ConfigNotFoundException;
+use Marko\Core\Contracts\ResettableInterface;
 use Marko\Core\Event\EventDispatcherInterface;
 use Marko\Session\Contracts\SessionInterface;
+use Override;
 
-class AuthManager
+/**
+ * Builds and caches the configured guards.
+ *
+ * The guards it builds are not container instances, so a long-running worker
+ * reaches them through this shared manager: reset() clears every cached guard
+ * that holds per-request state (a session guard's resolved user), keeping the
+ * guard instances themselves.
+ */
+class AuthManager implements ResettableInterface
 {
     /** @var array<string, GuardInterface> */
     private array $guards = [];
@@ -164,5 +174,19 @@ class AuthManager
     public function logout(): void
     {
         $this->guard()->logout();
+    }
+
+    /**
+     * Clear the per-request state of every guard built or registered so far.
+     * Guards that hold none (for example a test FakeGuard) are left alone.
+     */
+    #[Override]
+    public function reset(): void
+    {
+        foreach ($this->guards as $guard) {
+            if ($guard instanceof ResettableInterface) {
+                $guard->reset();
+            }
+        }
     }
 }
