@@ -13,6 +13,7 @@ use Marko\Authentication\Event\FailedLoginEvent;
 use Marko\Authentication\Event\LoginEvent;
 use Marko\Authentication\Event\LogoutEvent;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Tests\Fixtures\BoundProviderResolver;
 use Marko\Authentication\Tests\Fixtures\StatelessFakeGuard;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeAuthenticatable;
@@ -42,7 +43,7 @@ test('complete login flow works', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -84,7 +85,7 @@ test('complete logout flow works', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
@@ -163,7 +164,7 @@ test('guard switching works correctly', function (): void {
     $manager = new AuthManager(
         config: $authConfig,
         session: $session,
-        provider: $provider,
+        providerResolver: BoundProviderResolver::for($provider),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),

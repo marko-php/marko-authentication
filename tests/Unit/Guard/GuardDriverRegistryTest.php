@@ -9,6 +9,7 @@ use Marko\Authentication\Contracts\UserProviderInterface;
 use Marko\Authentication\Exceptions\AuthException;
 use Marko\Authentication\Guard\GuardDriverRegistry;
 use Marko\Authentication\Guard\SessionGuard;
+use Marko\Authentication\Tests\Fixtures\BoundProviderResolver;
 use Marko\Authentication\Token\RememberTokenManager;
 use Marko\Testing\Fake\FakeClock;
 use Marko\Testing\Fake\FakeConfigRepository;
@@ -36,7 +37,7 @@ function managerWithDrivers(
             'authentication.guards' => $guards,
         ])),
         session: $session,
-        provider: $provider ?? new FakeUserProvider(),
+        providerResolver: BoundProviderResolver::for($provider ?? new FakeUserProvider()),
         eventDispatcher: new FakeEventDispatcher(),
         cookieJar: new FakeCookieJar(),
         rememberTokenManager: new RememberTokenManager(new FakeClock()),
