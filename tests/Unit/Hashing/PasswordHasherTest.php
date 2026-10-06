@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Marko\Authentication\Contracts\PasswordHasherInterface;
+use Marko\Authentication\Exceptions\AuthException;
+use Marko\Authentication\Exceptions\InvalidPasswordException;
 use Marko\Authentication\Hashing\BcryptPasswordHasher;
 
 it('creates PasswordHasherInterface with hash method', function () {
@@ -206,4 +208,91 @@ it('spends real hashing work on a dummy verification', function () {
 
     // A cost-10 check runs 64x the rounds of a cost-4 check; a short-circuited dummy would be far faster
     expect($dummyNs)->toBeGreaterThan($cheapNs * 4);
+});
+
+it('rejects a password longer than 72 bytes instead of silently truncating it', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+
+    expect(fn () => $hasher->hash(str_repeat('a', 73)))
+        ->toThrow(InvalidPasswordException::class, 'Password is longer than 72 bytes');
+});
+
+it('counts bytes rather than characters when enforcing the 72-byte limit', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+
+    // 37 two-byte characters = 74 bytes
+    expect(fn () => $hasher->hash(str_repeat('é', 37)))
+        ->toThrow(InvalidPasswordException::class);
+});
+
+it('rejects a password containing a NUL byte with a specific exception', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+
+    expect(fn () => $hasher->hash("secret\0suffix"))
+        ->toThrow(InvalidPasswordException::class, 'Password contains a NUL byte');
+});
+
+it('accepts a password of exactly 72 bytes', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+    $password = str_repeat('a', 72);
+
+    $hash = $hasher->hash($password);
+
+    expect($hasher->verify($password, $hash))->toBeTrue();
+});
+
+it('returns false when verifying a password longer than 72 bytes', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+    $hash = $hasher->hash(str_repeat('a', 72));
+
+    // bcrypt would otherwise ignore the 73rd byte and report a match
+    expect($hasher->verify(str_repeat('a', 72) . 'Y', $hash))->toBeFalse();
+});
+
+it('returns false when verifying a password containing a NUL byte', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+    $hash = $hasher->hash('secret');
+
+    expect($hasher->verify("secret\0", $hash))->toBeFalse();
+});
+
+it('does not throw when a dummy verification receives an unhashable password', function () {
+    $hasher = new BcryptPasswordHasher(cost: 4);
+
+    $hasher->verifyDummy(str_repeat('a', 100));
+    $hasher->verifyDummy("secret\0suffix");
+
+    expect(true)->toBeTrue();
+});
+
+it('spends real hashing work when rejecting an oversize password during verification', function () {
+    $costlyHasher = new BcryptPasswordHasher(cost: 10);
+    $cheapHasher = new BcryptPasswordHasher(cost: 4);
+    $cheapHash = $cheapHasher->hash('secret');
+
+    $start = hrtime(true);
+    $costlyHasher->verify(str_repeat('a', 100), $cheapHash);
+    $rejectedNs = hrtime(true) - $start;
+
+    $start = hrtime(true);
+    $cheapHasher->verify('attacker-guess', $cheapHash);
+    $cheapNs = hrtime(true) - $start;
+
+    // An instant false for a known account would contrast with verifyDummy's full-cost run for an unknown
+    // one, letting response timing reveal which accounts exist
+    expect($rejectedNs)->toBeGreaterThan($cheapNs * 4);
+});
+
+it('builds InvalidPasswordException with context and suggestion', function () {
+    $tooLong = InvalidPasswordException::tooLong(72, 80);
+    $nulByte = InvalidPasswordException::containsNulByte();
+
+    expect($tooLong)->toBeInstanceOf(AuthException::class)
+        ->and($tooLong->getMessage())->toBe('Password is longer than 72 bytes')
+        ->and($tooLong->getContext())->toContain('80 bytes')
+        ->and($tooLong->getSuggestion())->not->toBeEmpty()
+        ->and($nulByte)->toBeInstanceOf(AuthException::class)
+        ->and($nulByte->getMessage())->toBe('Password contains a NUL byte')
+        ->and($nulByte->getContext())->not->toBeEmpty()
+        ->and($nulByte->getSuggestion())->not->toBeEmpty();
 });
