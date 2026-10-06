@@ -351,37 +351,101 @@ test('it throws for unknown guard driver', function (): void {
     $manager->guard('custom');
 })->throws(AuthException::class, 'Unknown guard driver');
 
-test('it throws for unknown guard', function (): void {
-    $configRepo = new FakeConfigRepository([
-        'authentication.remember.cookie.prefix' => 'remember_',
-        'authentication.default.guard' => 'web',
-        'authentication.guards' => [
-            'web' => ['driver' => 'session', 'provider' => 'users'],
-        ],
+describe('undefined guards', function (): void {
+    beforeEach(function (): void {
+        $session = new FakeSession();
+        $session->start();
+
+        $this->manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'wbe',
+                'authentication.guards' => [
+                    'web' => ['driver' => 'session', 'provider' => 'users'],
+                    'api' => ['driver' => 'token', 'provider' => 'users'],
+                    'driverless' => ['provider' => 'users'],
+                ],
+            ])),
+            session: $session,
+            provider: new FakeUserProvider(),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
+            guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
+        );
+    });
+
+    it('throws for a guard name missing from authentication.guards', function (): void {
+        expect(fn () => $this->manager->guard('nonexistent'))
+            ->toThrow(AuthException::class, "Guard 'nonexistent' is not defined");
+    });
+
+    it('throws for a default guard name missing from authentication.guards', function (): void {
+        expect(fn () => $this->manager->guard())
+            ->toThrow(AuthException::class, "Guard 'wbe' is not defined");
+    });
+
+    it('lists the configured guards when the guard name is undefined', function (): void {
+        try {
+            $this->manager->guard('nonexistent');
+            $this->fail('Expected AuthException');
+        } catch (AuthException $e) {
+            expect($e->getContext())->toContain('Configured guards: web, api, driverless');
+        }
+    });
+
+    it('suggests adding the guard or fixing the default guard name', function (): void {
+        try {
+            $this->manager->guard('nonexistent');
+            $this->fail('Expected AuthException');
+        } catch (AuthException $e) {
+            expect($e->getSuggestion())->toContain('authentication.guards.nonexistent')
+                ->toContain('authentication.default.guard')
+                ->toContain('authorization.default_guard');
+        }
+    });
+
+    it('throws for a configured guard with no driver', function (): void {
+        expect(fn () => $this->manager->guard('driverless'))
+            ->toThrow(AuthException::class, "Guard 'driverless' has no driver");
+    });
+
+    it('throws missingGuardDriver when the driver is null, empty or not a string', function (mixed $guardEntry): void {
+        $session = new FakeSession();
+        $session->start();
+
+        $manager = new AuthManager(
+            config: new AuthConfig(new FakeConfigRepository([
+                'authentication.remember.cookie.prefix' => 'remember_',
+                'authentication.default.guard' => 'web',
+                'authentication.guards' => [
+                    'web' => $guardEntry,
+                ],
+            ])),
+            session: $session,
+            provider: new FakeUserProvider(),
+            eventDispatcher: new FakeEventDispatcher(),
+            cookieJar: new FakeCookieJar(),
+            rememberTokenManager: new RememberTokenManager(new FakeClock()),
+        );
+
+        expect(fn () => $manager->guard())
+            ->toThrow(AuthException::class, "Guard 'web' has no driver");
+    })->with([
+        'null driver' => [['driver' => null, 'provider' => 'users']],
+        'empty driver' => [['driver' => '', 'provider' => 'users']],
+        'integer driver' => [['driver' => 1, 'provider' => 'users']],
+        'entry that is not an array' => ['session'],
     ]);
 
-    $authConfig = new AuthConfig($configRepo);
-    $session = new FakeSession();
-    $session->start();
-    $provider = new FakeUserProvider();
-
-    $manager = new AuthManager(
-        config: $authConfig,
-        session: $session,
-        provider: $provider,
-        eventDispatcher: new FakeEventDispatcher(),
-        cookieJar: new FakeCookieJar(),
-        rememberTokenManager: new RememberTokenManager(new FakeClock()),
-        guardDriverRegistry: StatelessFakeGuard::tokenDriverRegistry(),
-    );
-
-    // Requesting a guard that doesn't exist in config should fail
-    // The current implementation defaults to 'session' driver for unconfigured guards,
-    // so this actually succeeds. Let's verify the behavior.
-    $guard = $manager->guard('nonexistent');
-
-    // If we get here, it means unconfigured guards default to session driver
-    expect($guard)->toBeInstanceOf(SessionGuard::class);
+    it('names the driver config key when the guard has no driver', function (): void {
+        try {
+            $this->manager->guard('driverless');
+            $this->fail('Expected AuthException');
+        } catch (AuthException $e) {
+            expect($e->getSuggestion())->toContain('authentication.guards.driverless.driver');
+        }
+    });
 });
 
 test('it handles multiple guards', function (): void {
@@ -543,6 +607,14 @@ describe('useGuard', function (): void {
 
         expect($built)->toBeInstanceOf(SessionGuard::class)
             ->and($this->manager->guard('web'))->toBe($guard);
+    });
+
+    it('returns a guard put in place with useGuard under an unconfigured name', function (): void {
+        $guard = new FakeGuard(name: 'unconfigured');
+
+        $this->manager->useGuard('unconfigured', $guard);
+
+        expect($this->manager->guard('unconfigured'))->toBe($guard);
     });
 });
 

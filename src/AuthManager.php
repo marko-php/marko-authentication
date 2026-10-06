@@ -54,8 +54,18 @@ class AuthManager implements ResettableInterface
         }
 
         $guardsConfig = $this->config->guards();
-        $guardConfig = $guardsConfig[$name] ?? [];
-        $driver = $guardConfig['driver'] ?? 'session';
+
+        if (!array_key_exists($name, $guardsConfig)) {
+            throw AuthException::undefinedGuard($name, array_map('strval', array_keys($guardsConfig)));
+        }
+
+        // Config values are untyped, so check the entry's shape rather than trust it.
+        $guardConfig = $guardsConfig[$name];
+        $driver = is_array($guardConfig) ? ($guardConfig['driver'] ?? null) : null;
+
+        if (!is_array($guardConfig) || !is_string($driver) || $driver === '') {
+            throw AuthException::missingGuardDriver($name);
+        }
 
         $guard = $this->createGuard($driver, $name, $guardConfig);
 

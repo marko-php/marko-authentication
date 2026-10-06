@@ -65,6 +65,33 @@ class AuthException extends Exception
     }
 
     /**
+     * @param list<string> $configuredGuards
+     */
+    public static function undefinedGuard(
+        string $guard,
+        array $configuredGuards,
+    ): self {
+        $configured = $configuredGuards === [] ? '(none)' : implode(', ', $configuredGuards);
+
+        return new self(
+            message: "Guard '$guard' is not defined in authentication.guards",
+            context: "AuthManager was asked for guard '$guard'. Configured guards: $configured",
+            suggestion: "Add authentication.guards.$guard with a driver, or fix the guard name where it is set "
+                . '(authentication.default.guard, authorization.default_guard, or the name passed to AuthManager::guard())',
+        );
+    }
+
+    public static function missingGuardDriver(
+        string $guard,
+    ): self {
+        return new self(
+            message: "Guard '$guard' has no driver",
+            context: "authentication.guards.$guard has no 'driver' key",
+            suggestion: "Set authentication.guards.$guard.driver, for example 'session' or 'token'",
+        );
+    }
+
+    /**
      * @param list<string> $availableDrivers
      */
     public static function unknownGuardDriver(
